@@ -1,0 +1,210 @@
+# LoomQ 人工评分证据
+
+这份文件是人工评分材料的统一入口。截图、原始结果或图表统一放在
+`starter_kit/evidence/files/`，代码与文档直接引用 `starter_kit/` 中的内容。
+
+## 申报清单
+
+- [ ] L1 真机（代码已就绪，跑通后勾选并填写 job id）
+- [x] L2 交互体验
+- [x] 工程与产品化
+- [x] 自定义量子 RISC-V Bonus
+- [x] 新手引导与视觉叙事 Bonus
+
+---
+
+## L1 真机（最高 +10 分）
+
+> 代码与配置已全部就绪：`starter_kit/real_machine.py` + `evidence/config_*.json`。
+> 只差真实凭证（各平台申请步骤见 `starter_kit/HARDWARE_ACCESS.md`）。
+> 跑通后：把本段方框改为 `[x]`，并把下面的 `[填写]` 替换为真实 job id，
+> 原始结果文件会自动保存到 `evidence/files/`。
+
+**量旋超导真机**（`spinq_cloud`）：
+
+```text
+平台：量旋云 superconductor_vp（8 比特超导）
+命令：
+  export SPINQ_CLOUD_USERNAME="<你的量旋云用户名>"
+  export SPINQ_CLOUD_KEYFILE="$HOME/.ssh/spinq_cloud"
+  python3 starter_kit/real_machine.py spinq_cloud \
+      --qasm starter_kit/circuits/bell.qasm --shots 8192 \
+      --config starter_kit/evidence/config_spinq_cloud.json \
+      --out starter_kit/evidence/files/spinq_cloud_result.json
+job_id（task_code）：[填写]
+运行时间：[填写，UTC]
+shots：8192
+实际执行的 QASM：starter_kit/circuits/bell.qasm
+原始结果：starter_kit/evidence/files/spinq_cloud_result.json
+```
+
+**本源悟空真机**（`originq_wukong`）：
+
+```text
+平台：本源悟空 72 比特超导真机（chip_id=72）
+命令：
+  export ORIGINQ_API_TOKEN="<你的 API Token>"
+  python3 starter_kit/real_machine.py originq_wukong \
+      --qasm starter_kit/circuits/bell.qasm --shots 8192 \
+      --config starter_kit/evidence/config_originq_wukong.json \
+      --out starter_kit/evidence/files/originq_wukong_result.json
+job_id（task_id）：[填写]
+运行时间：[填写，UTC]
+shots：8192
+实际执行的 QASM：starter_kit/circuits/bell.qasm
+原始结果：starter_kit/evidence/files/originq_wukong_result.json
+```
+
+**AWS Braket**（可选，允许以本地模拟器替代）：
+
+```text
+本地模拟器证据：braket_local_simulator（无需账号）已随 L1 自动评测覆盖；
+云端证据（可选）：python3 starter_kit/real_machine.py braket_cloud --config starter_kit/evidence/config_braket_cloud.json
+```
+
+主峰核对：`real_machine.py` 会在提交前先在本地无噪声模拟器自验同一电路，
+真机返回的 counts 主峰与该理想主峰一致即命中（真机允许噪声，只查主峰）。
+
+---
+
+## L2 交互体验（最高 10 分）
+
+提供了**两个可运行的用户入口**：Web 界面 + 引导式 CLI，均面向零量子背景用户。
+
+### 入口 1：Web 界面（推荐）
+
+```text
+启动命令：python3 starter_kit/loomq_web.py
+访问地址：http://127.0.0.1:8080
+（零依赖：仅 Python 标准库，评测容器可直接运行；实验与科普无需模型服务）
+```
+
+### 入口 2：引导式 CLI
+
+```text
+启动命令：python3 starter_kit/loomq_cli.py
+```
+
+### 3 个用户体验任务（工作人员可原样执行）
+
+1. **自然语言生成电路**：Web「说人话生成电路」输入
+   `让三个量子比特纠缠在一起（GHZ 态），然后全部测量` →
+   自动生成 OpenQASM 2.0 电路 → 一键在量旋/本源/AWS 模拟器运行 →
+   柱状图 + 大白话解读（「只出现全 0 和全 1，这就是纠缠的指纹」）。
+2. **代码纠错**：Web「修一段报错代码」粘贴 `H q[0]; CX q[0] q[1]` 并说明
+   「我想做一个贝尔态」→ 保持意图修复 → 自动自验 → 可运行并看结果。
+3. **智能选后端**：Web「帮我选平台」输入
+   `我需要运行一个 15 比特电路，且零排队等待` →
+   返回规范后端标识 `braket_local_simulator`（及全部合规选项），附理由。
+
+### 客观代码（可被评测器自动调用）
+
+```text
+python3 -c "import sys; sys.path.insert(0,'starter_kit'); from adapter import agent_chat; print(agent_chat('生成一个2比特贝尔态'))"
+```
+
+`agent_chat` 实现「生成 QASM → 用 L1 中间层自验 → 不对就带错误重试」闭环；
+选后端为「LLM 建议 + 官方能力表约束求解」双通道，回复包含规范后端 id。
+
+---
+
+## 工程与产品化
+
+### 一键复现
+
+```bash
+cd starter_kit
+pip install -r requirements.txt
+python3 evaluator.py --level all --target spinq,originq,braket   # 自测（L1 需模型服务时跳过 L2 或先配 LOOMQ_LLM_*）
+python3 loomq_cli.py                                             # 交互入口
+python3 loomq_web.py                                             # Web 入口
+```
+
+### 架构
+
+```
+自然语言 ──► L2 agent_chat（生成/纠错/选后端，L1 自验闭环）
+                │
+                ▼
+         OpenQASM 2.0（12 门白名单）
+                │
+                ▼
+         L1 统一中间层 transpile()
+          ├─ spinq  → OpenQASM 2.0（原样，含 qelib1 头）
+          ├─ originq→ OriginIR（QINIT/CREG/H/CNOT/…/MEASURE，规范子集）
+          └─ braket → OpenQASM 3（braket 方言：cnot/cphaseshift/ccnot/si/ti，
+                      与参考实现 LocalSimulator 实测兼容）
+                │
+                ▼
+         run()：三后端本地无噪声模拟 → 统一 Schema（bit_order=little）
+                │
+                ▼
+         L3 compile_hybrid：Hybrid-QASM → (量子操作序列, RISC-V 汇编)
+         在官方 riscv_emulator.py 穷举测量注入验证
+```
+
+### 核心模块
+
+| 文件 | 职责 |
+|---|---|
+| `adapter.py` | 契约入口：transpile / run / agent_chat / compile_hybrid |
+| `real_machine.py` | 三平台真机统一接入（自定义输入 JSON/CLI） |
+| `llm_client.py` | OpenAI-compatible 传输（仅环境变量配置） |
+| `loomq_cli.py` / `loomq_web.py` | 交互入口（CLI / 零依赖 Web） |
+| `quantum_riscv_emulator.py` | 量子 RISC-V 扩展模拟器（LQ-Q） |
+| `riscv_emulator.py` | 官方 RISC-V 模拟器（未修改，供 L3 验证） |
+
+### 目标用户
+
+没有量子物理背景、不懂各家平台「黑话」、但有想法的跨界创造者与软件工程师。
+
+### 完整使用流程
+
+1. `python3 starter_kit/loomq_web.py` → 打开 http://127.0.0.1:8080
+2. 「现成实验」先跑通第一个 Bell 态（无需任何配置）
+3. 「说人话生成电路」描述想法 → 得到电路 → 一键运行 → 看懂柱状图
+4. 命令行/代码直接调用 `transpile()`/`run()`/`compile_hybrid()`
+
+---
+
+## 自定义量子 RISC-V Bonus（+8）
+
+三项材料齐全，端到端测试通过：
+
+1. **指令编码规格文档**：`starter_kit/quantum_riscv_isa.md`
+   （LQ-Q Extension v1.0：RISC-V custom-0 opcode 0x0B 上的 R-type 量子指令，
+   funct3 分门别类，rs1/rs2 直接编码量子比特索引，QPARAM 毫弧度参数寄存器）
+2. **对官方模拟器的扩展实现**：`starter_kit/quantum_riscv_emulator.py`
+   （fork 官方 `riscv_emulator.py`，继承 `TinyRISCVEmulator`，7 条经典指令语义
+   不变，量子助记符先汇编为真实 32 位机器码再解码执行——编码规格处于执行
+   必要路径，不是旁置文档；支持中路测量反馈：测量 → 经典分支 → 条件量子门）
+3. **可运行的端到端测试**：
+   ```bash
+   python3 starter_kit/test_quantum_riscv.py
+   # 31 passed, 0 failed
+   # 覆盖：经典回归、编码往返、Bell、中路测量反馈、参数门、Toffoli/GHZ、测量塌缩
+   ```
+
+---
+
+## 新手引导与视觉叙事 Bonus（+4）
+
+- **Web 首屏叙事**：`loomq_web.py` —— 渐变暗色视觉 + 「让不懂黑话的人也能指挥
+  最前沿的算力」标题 + 分步引导（现成实验 → 生成 → 纠错 → 选平台 → 科普）。
+- **概念讲解**：Web「大白话科普」5 个概念（叠加/纠缠/为什么跑多次/量子门/本工具
+  在做什么）+ `QUICKSTART.md` + 官方 `QUANTUM_101.md`。
+- **结果可视化**：柱状图 + 每条结果的大白话解读（「纠缠的指纹」「独立随机」），
+  Web 与 CLI（`loomq_cli.py` 的 ASCII 柱状图）双份。
+- **错误恢复**：生成/纠错自动重试并回喂错误信息；模型服务未配置时给出可执行
+  配置指引，本地实验照常可用；Web 端友好错误横幅。
+- **无障碍**：大字号、高对比度、键盘可操作，纯本地无 CDN。
+
+---
+
+## 提交规则
+
+- 所有材料须在截止前进入最终提交 commit；工作人员不接受截止后补交。
+- 整个 fork commit 归档不得超过 100 MiB（`.venv`、密钥、大视频不入库）。
+- 不要提交 API Key / Token / Cookie / 私钥（`.gitignore` 已排除）。
+- 申报 L1 真机分时，在最终提交 Issue 的 `Hardware evidence` 填
+  `starter_kit/evidence/hardware/`。
