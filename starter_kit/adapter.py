@@ -327,6 +327,16 @@ def run(qasm_str: str, target: str, shots: int) -> Dict[str, Any]:
 # L2 / L3（可选，未参赛）
 # --------------------------------------------------------------------------
 
+# 全局截止时间（秒）：agent_chat 的模型调用预算，由入口处设置
+_AGENT_DEADLINE = [0.0]
+
+
+def _agent_remaining_budget() -> float:
+    """返回模型调用剩余预算（秒），至少 5s。"""
+    import time
+    return max(5.0, _AGENT_DEADLINE[0] - time.time())
+
+
 def agent_chat(prompt: str) -> str:
     """L2 Agent 主入口：自然语言 -> OpenQASM 2.0 / 纠错 / 选后端。
 
@@ -346,12 +356,16 @@ def agent_chat(prompt: str) -> str:
     import json
     import os
     import re
+    import time
     from pathlib import Path
 
     try:
         from . import llm_client
     except ImportError:
         import llm_client
+
+    # 每个 case 时限 120s：预留自验时间，模型调用总预算 100s
+    _AGENT_DEADLINE[0] = time.time() + 100.0
 
     backend_capabilities = json.loads(
         (Path(__file__).parent / "backend_capabilities.json").read_text(encoding="utf-8")
@@ -496,10 +510,16 @@ def _agent_backend_selection(prompt: str, backends: list, llm_client) -> str:
     return reply
 
 
-def _call_llm(system: str, user: str, llm_client, max_attempts: int = 2) -> str:
-    """带重试的模型调用；单次超时收缩到 90s 以内，保证总耗时 < 120s。"""
-    if not os.environ.get("LOOMQ_LLM_TIMEOUT_SECONDS"):
-        os.environ["LOOMQ_LLM_TIMEOUT_SECONDS"] = "90"
+def _call_llm(system: str, user: str, llm_client, max_attempts: int = 2,
+              timeout: float | None = None) -> str:
+    """带重试的模型调用；单次超时受剩余预算约束，保证总耗时 < 120s。"""
+    budget = timeout if timeout is not None else _agent_remaining_budget()
+    configured = os.environ.get("LOOMQ_LLM_TIMEOUT_SECONDS")
+    try:
+        env_timeout = float(configured) if configured else budget
+    except ValueError:
+        env_timeout = budget
+    os.environ["LOOMQ_LLM_TIMEOUT_SECONDS"] = str(max(5.0, min(env_timeout, budget)))
     messages = [
         {"role": "system", "content": system},
         {"role": "user", "content": user},
@@ -671,12 +691,14 @@ def _self_verify(qasm: str, prompt: str) -> tuple[bool, str]:
 
 
 def _agent_qasm_task(prompt: str, is_fix: bool, llm_client, backends: list) -> str:
-    """生成/纠错任务：LLM + 自验 + 重试闭环。"""
+    """生成/纠错任务：LLM + 自验 + 重试闭环（受 120s 时限约束）。"""
     system = _SYSTEM_FIX if is_fix else _SYSTEM_GENERATE
     user = prompt
     max_attempts = 3
     last_reply = ""
     for attempt in range(max_attempts):
+        if _agent_remaining_budget() < 8:
+            break  # 预算将尽，直接返回最后一次结果
         reply = _call_llm(system, user, llm_client)
         last_reply = reply
         qasm = _extract_qasm(reply)
