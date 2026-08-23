@@ -184,7 +184,11 @@ def main():
         print("  a. 运行全部")
         print("  q. 退出")
 
-        choice = input("\n你的选择: ").strip().lower()
+        try:
+            choice = input("\n你的选择: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("\n再见！")
+            return
 
         if choice == "q":
             print("再见！")
@@ -192,7 +196,10 @@ def main():
         elif choice == "a":
             for num, name, func in demos:
                 func()
-                input("\n按Enter继续下一个示例...")
+                try:
+                    input("\n按Enter继续下一个示例...")
+                except (EOFError, KeyboardInterrupt):
+                    return
         else:
             for num, name, func in demos:
                 if num == choice:
