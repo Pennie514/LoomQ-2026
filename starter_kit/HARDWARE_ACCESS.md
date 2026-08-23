@@ -195,3 +195,21 @@ python3 starter_kit/real_machine.py originq_wukong \
 
 > ⚠️ 不要提交任何 API Key / Token / 私钥文件到仓库。凭证只放本机环境变量。
 > `.gitignore` 已排除常见凭证文件名；若自定义了路径，请再次确认没有入库。
+
+---
+
+## 5. L2 本地调试：DeepSeek API（可选，自备）
+
+正式 L2 评分由组委会统一注入 DeepSeek 模型服务，**赛前不提供**。想本地验证
+`agent_chat`（Web / CLI 的「生成」「纠错」「选平台」）时，可自备 Key：
+
+1. 注册 DeepSeek 开放平台：https://platform.deepseek.com
+2. 充值少量额度（几块钱即可）→ 「API Keys」→ 创建 Key（`sk-...`）
+3. 配置环境变量后启动 Web / CLI：
+   ```bash
+   export LOOMQ_LLM_BASE_URL="https://api.deepseek.com"
+   export LOOMQ_LLM_API_KEY="sk-你的密钥"
+   export LOOMQ_LLM_MODEL="deepseek-v4-flash"
+   python3 starter_kit/loomq_web.py
+   ```
+4. 不配 Key 也没关系：Web「现成实验」、CLI 菜单 4/5、L1/L3 全部本地可用。
