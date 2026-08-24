@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
 """LoomQ Web 界面（零依赖：只用 Python 标准库，无需联网、无需 npm）
 
-「让不懂黑话的人，也能指挥最前沿的算力」——面向零量子背景用户的
+「让不懂黑话的人，也能指挥最前沿的算力」——面向**零量子背景**用户的
 可视化交互入口（L2 交互体验 + 新手引导/视觉叙事 Bonus）。
+
+设计原则（对真小白友好）：
+    - 「零基础入门」引导页：5 步走，全部用生活类比（旋转的硬币 / 魔法手套）
+      讲清楚"是什么 / 为什么 / 怎么做"，并与经典计算机对比；
+    - 每个实验都配：类比故事 + 你会看到什么 + 为什么有意思；
+    - 每次结果都附带大白话解读 + 与经典计算的对比；
+    - 模型服务未配置时给出友好中文提示（不是报错），实验/科普完全可用。
 
 启动：
     python3 starter_kit/loomq_web.py            # 默认 http://127.0.0.1:8080
     python3 starter_kit/loomq_web.py --port 9000
-
-特性：
-    1. 自然语言 -> 量子电路（复用 adapter.agent_chat 的自验闭环）
-    2. 一段代码纠错（保持原意图）
-    3. 智能选后端（官方能力表约束求解）
-    4. 现成实验：一键在量旋/本源/AWS 三个模拟器上运行并可视化柱状图
-    5. 大白话概念讲解 + 结果解读（纠缠、叠加、测量）
-
-模型服务未配置时，实验/讲解完全可用；生成/纠错会给出配置指引。
 """
 
 from __future__ import annotations
@@ -33,55 +31,116 @@ sys.path.insert(0, str(HERE))
 import adapter  # noqa: E402
 
 BACKENDS = [
-    ("spinq", "量旋 SpinQit 本地模拟器", "最轻量，秒出结果"),
-    ("originq", "本源 pyqpanda 本地模拟器", "国产框架，30 比特上限"),
-    ("braket", "AWS Braket 本地模拟器", "免费无需账号"),
+    ("spinq", "量旋本地模拟器", "最轻量，秒出结果"),
+    ("originq", "本源本地模拟器", "国产框架，上限高"),
+    ("braket", "AWS 本地模拟器", "免费无需账号"),
 ]
 
 EXAMPLES = [
     {
         "title": "量子硬币：一个比特的真随机",
+        "analogy": "类比：一枚在桌上旋转的硬币——在它倒下之前，正面和反面「同时」存在；"
+                   "一旦你看它（测量），它才随机定格成其中一面。",
         "story": "把一枚硬币立在半空——它既不是正面也不是反面，直到你看它的那一刻。"
                  "这不是「我们不知道结果」，而是结果在测量前真的还没定。",
+        "what_you_see": "你会看到：正面/反面各约一半（50% / 50%）。",
+        "why_cool": "这是真随机——经典计算机的「随机」其实是用算法模拟出来的，而这是量子世界天然的真随机。",
         "qasm": 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[1];\ncreg c[1];\n'
                 'h q[0];\nmeasure q -> c;\n',
     },
     {
         "title": "Bell 态：两个比特的纠缠",
+        "analogy": "类比：一副「魔法手套」——把左手套和右手套分装两个盒子，你打开一个看到"
+                   "左手，立刻知道另一个一定是右手，不需要任何电话。",
         "story": "两枚硬币被「绑」在一起：看了其中一枚，另一枚立刻就定了，而且永远和它一样。"
                  "距离多远都成立。",
+        "what_you_see": "你会看到：只会出现「00」或「11」两种结果，各约一半；"
+                        "「01」「10」几乎不出现。",
+        "why_cool": "经典计算机要模仿这个效果，必须事先「约好」两个比特相同；"
+                    "而量子纠缠是测量瞬间自动一致的——不需要任何约定。这是被实验反复验证的真实物理。",
         "qasm": 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[2];\ncreg c[2];\n'
                 'h q[0];\ncx q[0], q[1];\nmeasure q -> c;\n',
     },
     {
         "title": "GHZ 态：三个比特一起纠缠",
+        "analogy": "类比：三只「魔法手套」——要么全是左手，要么全是右手，没有中间情况。",
         "story": "三枚硬币绑在一起：要么全是正面，要么全是反面，没有中间情况。"
                  "这是「纠缠」最经典的指纹。",
+        "what_you_see": "你会看到：只会出现「000」或「111」，各约一半；其他 6 种组合几乎不出现。",
+        "why_cool": "三个比特同时锁定——这是多比特纠缠，是量子计算并行能力的根基之一。",
         "qasm": 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[3];\ncreg c[3];\n'
                 'h q[0];\ncx q[0], q[1];\ncx q[0], q[2];\nmeasure q -> c;\n',
     },
     {
         "title": "均匀叠加：三个比特各自独立随机",
+        "analogy": "类比：三枚各自独立的硬币——互不影响，各转各的。",
         "story": "三枚硬币各自独立抛——8 种组合概率相同。和 GHZ 对比，"
                  "你就能直观看出「纠缠」和「独立」的差别。",
+        "what_you_see": "你会看到：000 到 111 全部 8 种组合都出现，概率接近相同（各约 12.5%）。",
+        "why_cool": "经典里三个独立随机数也是这个分布；但量子里每个比特都处于叠加态，"
+                    "这里的区别在于：没有纠缠（上一个实验有）。",
         "qasm": 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[3];\ncreg c[3];\n'
                 'h q[0];\nh q[1];\nh q[2];\nmeasure q -> c;\n',
     },
 ]
 
+BASIC_STEPS = [
+    ("先认识「量子比特」",
+     "经典比特像一个电灯开关：要么开（1）要么关（0），任何时候只有一个状态。"
+     "量子比特像一枚旋转中的硬币：在它倒下之前，正面和反面「同时」存在——"
+     "这叫叠加态。倒下的那一刻叫测量。"),
+    ("跑你的第一个实验",
+     "点上方【现成实验】里的「量子硬币」并运行。你会看到 1 个比特测量 2000 次，"
+     "正面/反面各约一半——这就是量子的真随机。先别管代码，看柱状图就好。"),
+    ("看懂「纠缠」（重点）",
+     "再跑「Bell 态」。你会看到永远只有「00」或「11」，绝不出现「01」「10」。"
+     "就像一副魔法手套：看到一只，立刻知道另一只。经典计算机要模仿这个必须"
+     "事先约定，而量子是测量瞬间自动一致——这是量子计算最独特的能力。"),
+    ("用大白话造你自己的电路",
+     "点【说人话生成电路】，输入类似「让三个量子比特纠缠在一起（GHZ 态），"
+     "然后全部测量」，智能体会自动写成电路，一键运行看结果。你不需要会写代码。"),
+    ("换平台再跑一次",
+     "同一份电路，在量旋/本源/AWS 三个平台各跑一次，结果分布一致——"
+     "这就是本工具的意义：一份电路，到处能跑，不用学任何平台的「黑话」。"),
+]
+
 CONCEPTS = [
-    ("量子比特是什么", "普通比特只能是 0 或 1，像一个开关。量子比特在被测量前可以处于 0 和 1 的"
-     "「叠加」——不是「一半时间 0 一半时间 1」，而是同时保有两种可能。一旦测量，它才随机坍缩成其中一个。"),
-    ("纠缠是什么", "两个量子比特可以被关联起来，使得测量其中一个的瞬间，另一个的结果也随之确定。"
-     "在 Bell 态里，你永远只会看到「都是 0」或「都是 1」，绝不会看到「一个 0 一个 1」。"
-     "这不是事先商量好的——是量子力学里经过实验反复验证的真实现象。"),
-    ("为什么要跑很多次", "量子测量是概率性的：跑一次只能得到一个结果，看不出规律。所以要跑成百上千次"
-     "（每次叫一个 shot），统计每种结果出现多少次，才能看出电路真正的行为。这就是结果里柱状图的含义。"),
-    ("量子门是什么", "量子门是对量子比特的基本操作，相当于经典程序里的运算符。本工具支持 12 个标准门，"
-     "常用的有：H（进入叠加）、X（翻转）、CX（产生纠缠）。你不需要记住它们——直接描述你想要什么就行。"),
-    ("这个工具在做什么", "各家量子平台的指令格式互不相通（量旋、本源、AWS 各说一套「黑话」）。"
-     "本工具把标准 OpenQASM 2.0 翻译成三家各自的格式，一份电路到处能跑；"
-     "再配一个智能体，让你用自然语言就能生成电路，不必先学会写 QASM。"),
+    ("量子比特是什么",
+     "开关 vs 硬币。经典比特=电灯开关，要么开(1)要么关(0)，任何时候只有一个状态。"
+     "量子比特=旋转中的硬币，倒下之前正面和反面「同时」存在。",
+     "对比传统：经典逻辑非黑即白；量子逻辑在观察之前可以「既是又是」。"),
+    ("叠加态是什么",
+     "旋转中的硬币。注意：不是「一半概率正面」，而是「在观察之前，正面和反面"
+     "同时存在于同一枚硬币上」。测量（看它）才让它随机定格成一个结果。",
+     "对比传统：经典里一个比特任何时候都确定；量子里不确定是常态，确定是测量结果。"),
+    ("纠缠是什么",
+     "一副魔法手套。盒子里一副手套，你带走一只，朋友带走另一只；你打开看到左手，"
+     "立刻知道朋友那只一定是右手——不需要打电话。量子纠缠：两个比特测量瞬间自动关联，"
+     "无论距离多远。Bell 态里永远只出现 00 或 11。",
+     "对比传统：经典里这叫「事先约定」；量子纠缠是测量瞬间自动一致的真实物理现象。"),
+    ("测量是什么",
+     "看硬币落下的那一刻。测量前是叠加（不确定），测量后得到确定结果（0 或 1），"
+     "并且测量本身会改变量子态——这叫坍缩。",
+     "对比传统：经典里「读」一个比特不改变它；量子里「读」（测量）会改变它，"
+     "所以同一电路必须跑很多次做统计。"),
+    ("量子门是什么",
+     "摆弄硬币的手法。H 门=把硬币转起来（制造叠加）；X 门=把硬币翻面（0↔1）；"
+     "CX 门=把两枚硬币绑在一起（制造纠缠）。",
+     "对比传统：就像经典程序里的运算符（+、-、if），量子门是作用在量子态上的基本操作。"),
+    ("量子计算 vs 经典计算",
+     "经典计算机：一个一个地试（串行）。量子计算机：利用叠加「同时」探索所有可能，"
+     "利用纠缠让答案之间产生关联。",
+     "类比：经典=一个人一页一页翻书找答案；量子=整本书的所有页同时被翻开。"
+     "这就是某些问题（如大数分解、搜索）量子有理论优势的原因。"),
+    ("为什么要跑很多次（shots）",
+     "掷硬币：掷一次看不出规律，掷 1000 次才看出约 50/50。量子测量同理："
+     "每次结果随机，跑几千次统计出概率分布，才能看清电路真正的行为。"
+     "结果页的柱状图就是这张「统计表」。"),
+    ("本工具在做什么",
+     "各家量子平台的指令格式互不相通（量旋、本源、AWS 各说一套「黑话」）。"
+     "本工具把标准电路翻译成三家各自的格式，一份电路到处能跑；"
+     "再配一个「会说人话」的智能体，让你用自然语言就能造电路。",
+     "类比：就像「通用充电器」——不管什么插头，插上就能用。"),
 ]
 
 PAGE = r"""<!DOCTYPE html>
@@ -89,7 +148,7 @@ PAGE = r"""<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LoomQ · 让不懂「黑话」的人也能用上量子计算</title>
+<title>LoomQ · 量子计算，像转硬币一样简单</title>
 <style>
   :root{
     --bg0:#070b18; --bg1:#0c1330; --card:rgba(255,255,255,.045);
@@ -103,17 +162,18 @@ PAGE = r"""<!DOCTYPE html>
          radial-gradient(1100px 500px at 85% -10%, rgba(124,92,255,.22), transparent 60%),
          radial-gradient(900px 480px at -10% 10%, rgba(0,212,255,.14), transparent 55%),
          linear-gradient(180deg,var(--bg0),var(--bg1));
-       color:var(--txt); min-height:100vh; line-height:1.65}
-  .wrap{max-width:1060px;margin:0 auto;padding:28px 22px 90px}
-  header{text-align:center;padding:42px 0 10px}
-  .logo{font-size:15px;letter-spacing:.35em;color:var(--acc2);font-weight:700;text-transform:uppercase}
-  h1{font-size:clamp(26px,4.6vw,44px);font-weight:800;margin:12px 0 8px;
+       color:var(--txt); min-height:100vh; line-height:1.7}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 22px 90px}
+  header{text-align:center;padding:38px 0 8px}
+  .logo{font-size:14px;letter-spacing:.35em;color:var(--acc2);font-weight:700;text-transform:uppercase}
+  h1{font-size:clamp(24px,4.4vw,42px);font-weight:800;margin:12px 0 8px;
      background:linear-gradient(90deg,#fff,#b9a6ff 60%,#00d4ff);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .sub{color:var(--dim);font-size:clamp(14px,2vw,17px);max-width:640px;margin:0 auto}
-  .tag{display:inline-block;margin:14px 6px 0;padding:5px 14px;border:1px solid var(--line);
-       border-radius:999px;font-size:12.5px;color:var(--dim);background:var(--card)}
-  nav{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:30px 0 6px}
-  nav button{border:1px solid var(--line);background:var(--card);color:var(--dim);padding:9px 16px;
+  .sub{color:var(--dim);font-size:clamp(14px,2vw,17px);max-width:700px;margin:0 auto}
+  .analogy-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:22px auto 0;max-width:900px}
+  .acard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;text-align:left;font-size:13px;color:var(--dim)}
+  .acard b{color:var(--acc2);display:block;margin-bottom:4px;font-size:13.5px}
+  nav{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:26px 0 6px}
+  nav button{border:1px solid var(--line);background:var(--card);color:var(--dim);padding:9px 15px;
        border-radius:12px;cursor:pointer;font-size:14px;transition:.18s}
   nav button:hover{color:var(--txt);border-color:rgba(255,255,255,.25);transform:translateY(-1px)}
   nav button.on{color:#fff;border-color:var(--acc);background:linear-gradient(135deg,rgba(124,92,255,.32),rgba(0,212,255,.18));box-shadow:0 4px 18px rgba(124,92,255,.25)}
@@ -121,9 +181,9 @@ PAGE = r"""<!DOCTYPE html>
   .panel.on{display:block}
   @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
   .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;margin-top:18px}
-  .card h3{font-size:17px;margin-bottom:10px}
+  .card h3{font-size:17px;margin-bottom:8px}
   .card p{color:var(--dim);font-size:14px}
-  textarea{width:100%;min-height:96px;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--txt);
+  textarea{width:100%;min-height:92px;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--txt);
        border-radius:12px;padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;resize:vertical}
   textarea:focus{outline:none;border-color:var(--acc)}
   input[type=text]{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--txt);
@@ -154,21 +214,28 @@ PAGE = r"""<!DOCTYPE html>
   .chip{border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--dim);padding:7px 13px;border-radius:999px;font-size:12.5px;cursor:pointer;transition:.15s}
   .chip:hover{color:#fff;border-color:var(--acc2)}
   .steps{counter-reset:s;margin:16px 0 4px}
-  .step{display:flex;gap:12px;align-items:flex-start;margin:10px 0;color:var(--dim);font-size:14px}
-  .step::before{counter-increment:s;content:counter(s);min-width:24px;height:24px;border-radius:8px;
-       background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;font-size:12.5px;font-weight:800;
-       display:flex;align-items:center;justify-content:center}
+  .step{display:flex;gap:12px;align-items:flex-start;margin:14px 0;color:var(--dim);font-size:14px}
+  .step::before{counter-increment:s;content:counter(s);min-width:26px;height:26px;border-radius:8px;
+       background:linear-gradient(135deg,var(--acc),var(--acc2));color:#fff;font-size:13px;font-weight:800;
+       display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+  .step b{color:var(--txt);display:block;margin-bottom:3px}
   .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:16px}
   .exp{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:14px;padding:16px;cursor:pointer;transition:.18s}
   .exp:hover{border-color:var(--acc2);transform:translateY(-2px)}
   .exp h4{font-size:15px;margin-bottom:6px}
   .exp p{font-size:13px;color:var(--dim)}
+  .exp .tag{display:inline-block;font-size:11.5px;color:var(--acc2);border:1px solid rgba(0,212,255,.3);border-radius:999px;padding:2px 10px;margin-bottom:8px}
   .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;
        border-radius:50%;animation:rot .7s linear infinite;vertical-align:-2px;margin-right:8px}
   @keyframes rot{to{transform:rotate(360deg)}}
   footer{margin-top:50px;text-align:center;color:var(--dim);font-size:12.5px}
-  .banner{display:none;padding:10px 16px;border-radius:12px;font-size:13px;margin-top:14px}
+  .banner{display:none;padding:12px 16px;border-radius:12px;font-size:13.5px;margin-top:14px;line-height:1.8}
   .banner.show{display:block}
+  .banner.ok{background:rgba(45,212,167,.10);border:1px solid rgba(45,212,167,.3)}
+  .banner.warn{background:rgba(255,184,77,.10);border:1px solid rgba(255,184,77,.3)}
+  .banner.err{background:rgba(255,107,129,.10);border:1px solid rgba(255,107,129,.3)}
+  .banner code{background:rgba(0,0,0,.4);padding:1px 6px;border-radius:6px;font-size:12px}
+  .hint{color:var(--dim);font-size:13px;margin-top:8px}
   a{color:var(--acc2)}
 </style>
 </head>
@@ -176,18 +243,19 @@ PAGE = r"""<!DOCTYPE html>
 <div class="wrap">
   <header>
     <div class="logo">LoomQ · 量子接入平权计划</div>
-    <h1>让不懂「黑话」的人，也能指挥最前沿的算力</h1>
-    <p class="sub">不用学量子物理、不用记指令格式——用你自己的话，驱动量旋 / 本源 / AWS 三家真实量子算力。</p>
-    <div>
-      <span class="tag">✦ 自然语言生成电路</span>
-      <span class="tag">✦ 自动纠错</span>
-      <span class="tag">✦ 智能选平台</span>
-      <span class="tag">✦ 结果可视化</span>
+    <h1>量子计算，其实像转硬币一样简单</h1>
+    <p class="sub">不用懂物理、不用写代码。我们用 4 个生活类比，让你 5 分钟看懂你在做什么、为什么有趣、和传统计算机有什么不同。</p>
+    <div class="analogy-strip">
+      <div class="acard"><b>🪙 量子比特</b>像旋转的硬币——倒下之前，正面反面同时存在</div>
+      <div class="acard"><b>🧤 纠缠</b>像一副魔法手套——看到一只，立刻知道另一只</div>
+      <div class="acard"><b>📊 测量</b>像看硬币落下的那一刻——结果才定格</div>
+      <div class="acard"><b>🔌 本工具</b>像通用充电器——一份电路，三家平台都能跑</div>
     </div>
   </header>
 
   <nav id="nav">
-    <button data-p="gen" class="on">💬 说人话生成电路</button>
+    <button data-p="basic" class="on">🌱 零基础入门</button>
+    <button data-p="gen">💬 说人话生成电路</button>
     <button data-p="fix">🩹 修一段报错代码</button>
     <button data-p="pick">🧭 帮我选平台</button>
     <button data-p="lab">🧪 现成实验（免配置）</button>
@@ -196,8 +264,21 @@ PAGE = r"""<!DOCTYPE html>
 
   <div id="banner" class="banner"></div>
 
+  <!-- 0 零基础入门 -->
+  <section id="p-basic" class="panel on">
+    <div class="card">
+      <h3>🌱 5 分钟从零到第一次量子实验</h3>
+      <p>跟着下面 5 步走，每一步都有生活类比。不需要任何背景知识。</p>
+      <div class="steps" id="basic-steps"></div>
+      <div class="row">
+        <button class="go" onclick="goTab('lab')">🚀 现在就跑第一个实验</button>
+        <button class="ghost" onclick="goTab('learn')">先看科普</button>
+      </div>
+    </div>
+  </section>
+
   <!-- 1 生成 -->
-  <section id="p-gen" class="panel on">
+  <section id="p-gen" class="panel">
     <div class="card">
       <h3>用自己的话描述你想要的电路</h3>
       <p>例如：「让三个量子比特纠缠在一起，然后全部测量」或「做一个两比特的随机数发生器」。</p>
@@ -258,7 +339,7 @@ PAGE = r"""<!DOCTYPE html>
   <section id="p-lab" class="panel">
     <div class="card">
       <h3>现成实验（不需要密钥，直接能跑）</h3>
-      <p>每个实验都会解释「这说明什么」——第一次用就从这里开始。</p>
+      <p>每个实验都配了类比故事和「你会看到什么」。第一次用就从这里开始。</p>
       <div class="grid2" id="lab-grid"></div>
       <div class="out" id="lab-out"></div>
     </div>
@@ -267,14 +348,13 @@ PAGE = r"""<!DOCTYPE html>
   <!-- 5 科普 -->
   <section id="p-learn" class="panel">
     <div class="card">
-      <h3>量子概念讲解（大白话，没有公式）</h3>
+      <h3>量子概念讲解（大白话 + 类比 + 与经典对比）</h3>
       <div class="grid2" id="learn-grid"></div>
       <div class="out" id="learn-out"></div>
     </div>
   </section>
 
-  <footer>LoomQ · SheNicest 2026 量子赛道 · 统一中间层 + 会说人话的智能体<br>
-  命令行版：<code>python3 starter_kit/loomq_cli.py</code> · 真机接入：<code>python3 starter_kit/real_machine.py</code></footer>
+  <footer>LoomQ · SheNicest 2026 量子赛道 · 命令行版：<code>python3 starter_kit/loomq_cli.py</code></footer>
 </div>
 
 <script>
@@ -282,19 +362,40 @@ const $ = id => document.getElementById(id);
 const EXAMPLES = __EXAMPLES__;
 const CONCEPTS = __CONCEPTS__;
 const BACKENDS = __BACKENDS__;
+const BASIC_STEPS = __BASIC_STEPS__;
 
 /* 导航 */
-document.querySelectorAll('#nav button').forEach(b => b.onclick = () => {
+function goTab(name) {
   document.querySelectorAll('#nav button').forEach(x => x.classList.remove('on'));
   document.querySelectorAll('.panel').forEach(x => x.classList.remove('on'));
-  b.classList.add('on'); $('p-' + b.dataset.p).classList.add('on');
-});
+  document.querySelector('#nav button[data-p="' + name + '"]').classList.add('on');
+  $('p-' + name).classList.add('on');
+}
+document.querySelectorAll('#nav button').forEach(b => b.onclick = () => goTab(b.dataset.p));
+
+/* 模型服务状态 */
+let llmReady = false;
+async function checkConfig() {
+  try {
+    const r = await fetch('/api/config-status');
+    const d = await r.json();
+    llmReady = d.configured;
+    if (!llmReady) {
+      banner('🔑 模型服务未配置：<b>生成电路 / 纠错 / 选平台</b> 暂时用不了（正式评测时组委会会自动注入）。'
+        + '你可以先玩 <b>现成实验</b> 和 <b>科普</b>——完全离线，不需要任何配置。<br>'
+        + '想本地体验完整功能，配置方法：<code>export LOOMQ_LLM_BASE_URL="https://api.deepseek.com"</code> '
+        + '<code>export LOOMQ_LLM_API_KEY="sk-..."</code> <code>export LOOMQ_LLM_MODEL="deepseek-chat"</code>', 'warn');
+    } else {
+      banner('✅ 模型服务已连接（' + d.model + '），所有功能可用！', 'ok');
+    }
+  } catch (e) { /* 忽略 */ }
+}
 
 function banner(msg, kind) {
   const el = $('banner');
-  el.textContent = msg;
+  el.innerHTML = msg;
   el.className = 'banner show ' + (kind || '');
-  setTimeout(() => el.classList.remove('show'), 9000);
+  setTimeout(() => el.classList.remove('show'), 30000);
 }
 
 async function post(url, body) {
@@ -304,7 +405,7 @@ async function post(url, body) {
 
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-/* 渲染柱状图 */
+/* 渲染柱状图 + 大白话解读（含经典对比） */
 function renderHist(out, result, shots) {
   const counts = result.counts || {};
   const total = shots || Object.values(counts).reduce((a, b) => a + b, 0) || 1;
@@ -326,20 +427,39 @@ function interpretText(counts, shots) {
   if (!counts) return '';
   const states = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
   const top = states[0];
-  let msg = '';
-  if (states.length === 1) msg = `结果完全确定——每次都是 |${top}⟩，这个电路没有随机性。`;
-  else if (states.length === 2 && states.every(s => /^(0+|1+)$/.test(s)) && top.length > 1)
-    msg = '只出现「全 0」和「全 1」两种结果，各占一半——这就是<b>纠缠</b>的指纹：这些比特的测量结果被锁死在一起了。';
-  else if (states.length === Math.pow(2, top.length))
-    msg = `${states.length} 种组合都出现了，概率接近相同——这些比特各自独立随机，彼此没有关联，和纠缠正好相反。`;
-  else msg = `出现了 ${states.length} 种结果，最常见的是 |${top}⟩（${(counts[top] / shots * 100).toFixed(1)}%）。`;
-  return `<div class="note" style="padding:10px 14px;background:rgba(45,212,167,.08);border-left:3px solid var(--ok);border-radius:0 10px 10px 0">💡 这说明什么：${msg}</div>`;
+  const n = top.length;
+  let msg = '', classic = '';
+  if (states.length === 1) {
+    msg = `结果完全确定——每次都是 |${top}⟩，这个电路没有随机性（就像一枚被胶带固定的硬币）。`;
+    classic = '经典对比：这和经典比特的输出一模一样（确定值），但这里的确定性来自量子门设计。';
+  } else if (states.length === 2 && states.every(s => /^(0+|1+)$/.test(s)) && n > 1) {
+    msg = `只出现「全 0」和「全 1」两种结果，各占一半——这就是<b>纠缠</b>的指纹：这些比特的测量结果被锁死在一起了（魔法手套）。`;
+    classic = '经典对比：经典计算机要模仿这个效果，必须事先「约好」所有比特相同；量子纠缠是测量瞬间自动一致的——不需要任何约定。';
+  } else if (states.length === Math.pow(2, n)) {
+    msg = `${states.length} 种组合都出现了，概率接近相同——这些比特各自独立随机，彼此没有关联（各自旋转的硬币），和纠缠正好相反。`;
+    classic = '经典对比：经典里 n 个独立随机数也是这个分布；区别在于量子里每个比特都处于叠加态，且没有纠缠。';
+  } else {
+    msg = `出现了 ${states.length} 种结果，最常见的是 |${top}⟩（${(counts[top] / shots * 100).toFixed(1)}%）。`;
+    classic = '经典对比：这是一个概率性电路——经典计算机每次也会得到不同结果，需要统计才能看清规律。';
+  }
+  return `<div class="note" style="padding:10px 14px;background:rgba(45,212,167,.08);border-left:3px solid var(--ok);border-radius:0 10px 10px 0">
+    💡 这说明什么：${msg}<br><span style="color:var(--dim)">${classic}</span></div>`;
+}
+
+/* 实验卡片：类比 + 你会看到 + 为什么有意思 */
+function renderExampleResult(i) {
+  const e = EXAMPLES[i];
+  return `<div class="note" style="padding:12px 14px;background:rgba(124,92,255,.07);border-left:3px solid var(--acc);border-radius:0 10px 10px 0;margin-top:10px">
+    <b>🪙 ${esc(e.analogy)}</b><br>
+    <span class="ok">👀 ${esc(e.what_you_see)}</span><br>
+    <span class="warn">✨ ${esc(e.why_cool)}</span></div>`;
 }
 
 /* ---------- 生成 ---------- */
 $('gen-go').onclick = async () => {
   const p = $('gen-in').value.trim();
   if (!p) return banner('先描述一下你想要什么～', 'warn');
+  if (!llmReady) return banner('🔑 模型服务未配置，生成功能暂不可用。先玩【现成实验】和【科普】吧！', 'warn');
   const btn = $('gen-go'); btn.disabled = true; btn.textContent = '⏳ 智能体正在生成并自验…';
   $('gen-out').innerHTML = '<div class="spin"></div>请稍候，智能体生成后会先用无噪声模拟器自验一遍…';
   try {
@@ -372,6 +492,7 @@ $('fix-go').onclick = async () => {
   const code = $('fix-in').value.trim();
   const intent = $('fix-intent').value.trim();
   if (!code) return banner('请把报错的代码粘进来', 'warn');
+  if (!llmReady) return banner('🔑 模型服务未配置，纠错功能暂不可用。先玩【现成实验】和【科普】吧！', 'warn');
   const btn = $('fix-go'); btn.disabled = true; btn.textContent = '⏳ 修复并自验中…';
   $('fix-out').innerHTML = '<div class="spin"></div>正在诊断错误并保持你的意图修复…';
   try {
@@ -397,6 +518,7 @@ $('fix-run').onclick = async () => {
 $('pick-go').onclick = async () => {
   const p = $('pick-in').value.trim();
   if (!p) return banner('说一下你的约束吧，比如比特数和是否愿意排队', 'warn');
+  if (!llmReady) return banner('🔑 模型服务未配置，选平台功能暂不可用。先玩【现成实验】和【科普】吧！', 'warn');
   const btn = $('pick-go'); btn.disabled = true; btn.textContent = '⏳ 按官方能力表求解中…';
   try {
     const r = await post('/api/chat', {prompt: p});
@@ -411,7 +533,8 @@ const labGrid = $('lab-grid');
 EXAMPLES.forEach((e, i) => {
   const d = document.createElement('div');
   d.className = 'exp';
-  d.innerHTML = `<h4>${esc(e.title)}</h4><p>${esc(e.story)}</p>`;
+  d.innerHTML = `<span class="tag">实验 ${i + 1}</span><h4>${esc(e.title)}</h4>
+    <p>🪙 ${esc(e.analogy)}</p>`;
   d.onclick = () => runExample(i);
   labGrid.appendChild(d);
 });
@@ -423,6 +546,7 @@ async function runExample(i) {
   if (r.error) { banner(r.error, 'err'); out.innerHTML = ''; return; }
   out.innerHTML = `<h3 style="margin-top:6px">${esc(e.title)}</h3>` +
     `<div class="q">${esc(e.story)}</div>` +
+    renderExampleResult(i) +
     `<pre class="code">${esc(e.qasm)}</pre>`;
   renderHist(out, r.result, 2048);
   out.insertAdjacentHTML('beforeend',
@@ -438,20 +562,33 @@ async function rerunExample(i, bi) {
   const div = document.createElement('div'); div.style.marginTop = '14px';
   div.innerHTML = `<div class="note" style="color:var(--acc2)">同一份电路在 ${BACKENDS[bi][1]} 上重跑：</div>`;
   out.appendChild(div); renderHist(div, r.result, 2048);
-  out.insertAdjacentHTML('beforeend', '<div class="note ok">✓ 未改一个字符，不同厂商的平台得到了一致的结果分布——这就是「统一中间层」。</div>');
+  out.insertAdjacentHTML('beforeend', '<div class="note ok">✓ 未改一个字符，不同厂商的平台得到了一致的结果分布——这就是「统一中间层」（通用充电器）。</div>');
 }
+
+/* ---------- 零基础入门步骤 ---------- */
+const stepsEl = $('basic-steps');
+BASIC_STEPS.forEach((s, i) => {
+  const d = document.createElement('div');
+  d.className = 'step';
+  d.innerHTML = `<div><b>${esc(s[0])}</b>${esc(s[1])}</div>`;
+  stepsEl.appendChild(d);
+});
 
 /* ---------- 科普 ---------- */
 const learnGrid = $('learn-grid');
 CONCEPTS.forEach((c, i) => {
   const d = document.createElement('div');
   d.className = 'exp';
-  d.innerHTML = `<h4>${esc(c[0])}</h4><p>点击展开讲解</p>`;
+  d.innerHTML = `<span class="tag">概念 ${i + 1}</span><h4>${esc(c[0])}</h4><p>点击展开讲解</p>`;
   d.onclick = () => {
-    $('learn-out').innerHTML = `<h3 style="margin-top:6px">${esc(c[0])}</h3><div class="q">${esc(c[1])}</div>`;
+    $('learn-out').innerHTML = `<h3 style="margin-top:6px">${esc(c[0])}</h3>
+      <div class="q">${esc(c[1])}</div>
+      <div class="note" style="padding:10px 14px;background:rgba(0,212,255,.07);border-left:3px solid var(--acc2);border-radius:0 10px 10px 0">🔁 ${esc(c[2])}</div>`;
   };
   learnGrid.appendChild(d);
 });
+
+checkConfig();
 </script>
 </body>
 </html>
@@ -471,14 +608,28 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        if self.path == "/api/config-status":
+            self._config_status()
+            return
         if self.path in ("/", "/index.html"):
             page = (PAGE
                     .replace("__EXAMPLES__", json.dumps(EXAMPLES, ensure_ascii=False))
                     .replace("__CONCEPTS__", json.dumps(CONCEPTS, ensure_ascii=False))
-                    .replace("__BACKENDS__", json.dumps(BACKENDS, ensure_ascii=False)))
+                    .replace("__BACKENDS__", json.dumps(BACKENDS, ensure_ascii=False))
+                    .replace("__BASIC_STEPS__", json.dumps(BASIC_STEPS, ensure_ascii=False)))
             self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         else:
             self._send(404, b"not found", "text/plain")
+
+    def _config_status(self):
+        import os
+        missing = [name for name in ("LOOMQ_LLM_BASE_URL", "LOOMQ_LLM_API_KEY", "LOOMQ_LLM_MODEL")
+                   if not os.environ.get(name)]
+        self._send(200, json.dumps({
+            "configured": not missing,
+            "missing": missing,
+            "model": os.environ.get("LOOMQ_LLM_MODEL", ""),
+        }).encode("utf-8"))
 
     def do_POST(self):
         try:
@@ -504,9 +655,7 @@ class Handler(BaseHTTPRequestHandler):
             qasm = _extract_qasm(reply)
             self._send(200, json.dumps({"reply": reply, "qasm": qasm}, ensure_ascii=False).encode("utf-8"))
         except Exception as exc:  # noqa: BLE001
-            self._send(200, json.dumps({"error": f"模型服务调用失败：{type(exc).__name__}。"
-                                              "请配置 LOOMQ_LLM_BASE_URL / LOOMQ_LLM_API_KEY / LOOMQ_LLM_MODEL。"},
-                                       ensure_ascii=False).encode("utf-8"))
+            self._send(200, json.dumps({"error": _friendly_llm_error(exc)}, ensure_ascii=False).encode("utf-8"))
 
     def _handle_run(self, payload):
         qasm = str(payload.get("qasm", ""))
@@ -523,6 +672,18 @@ class Handler(BaseHTTPRequestHandler):
                                        ensure_ascii=False).encode("utf-8"))
 
 
+def _friendly_llm_error(exc: Exception) -> str:
+    msg = str(exc)
+    if "LOOMQ_LLM" in msg or "环境变量" in msg or "模型调用失败" in msg:
+        return ("🔑 模型服务未配置或调用失败（正式评测时由组委会自动注入，无需操作）。\n"
+                "现在你可以先玩【现成实验】和【科普】（完全离线）。\n"
+                "本地体验完整功能请先设置：\n"
+                '  export LOOMQ_LLM_BASE_URL="https://api.deepseek.com"\n'
+                '  export LOOMQ_LLM_API_KEY="sk-你的密钥"\n'
+                '  export LOOMQ_LLM_MODEL="deepseek-chat"')
+    return f"模型服务调用失败：{type(exc).__name__}: {msg}"
+
+
 def _extract_qasm(text: str) -> str | None:
     import re
     if not isinstance(text, str):
@@ -536,16 +697,17 @@ def _extract_qasm(text: str) -> str | None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="LoomQ Web 界面（零依赖）")
+    parser = argparse.ArgumentParser(description="LoomQ Web 界面（零依赖，零基础友好）")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8080)
     args = parser.parse_args()
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print("=" * 60)
-    print("LoomQ Web 界面已启动")
+    print("LoomQ Web 界面已启动（零基础友好版）")
     print(f"  打开浏览器访问：http://{args.host}:{args.port}")
-    print("  实验与科普无需任何配置；生成/纠错/选平台需要模型服务：")
+    print("  推荐从【零基础入门】开始；实验与科普无需任何配置。")
+    print("  生成/纠错/选平台需要模型服务：")
     print("    export LOOMQ_LLM_BASE_URL=... LOOMQ_LLM_API_KEY=... LOOMQ_LLM_MODEL=...")
     print("  按 Ctrl+C 退出")
     print("=" * 60)
