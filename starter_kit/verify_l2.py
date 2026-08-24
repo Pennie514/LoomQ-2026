@@ -47,9 +47,12 @@ FIX_CASES = [
     ("帮我修复这段代码，我要 3 比特 GHZ 纠缠态：h q0; cx q0 q1; cx q0 q2（缺寄存器定义）", "ghz3"),
 ]
 BACKEND_CASES = [
-    ("我需要运行一个 15 比特电路，且零排队等待，选哪个平台？", "braket_local_simulator"),
-    ("我要用最大的免费模拟器跑 30 比特电路", "originq_local_simulator"),
-    ("跑 72 比特的悟空真机", "originq_wukong"),
+    # 15 比特 + 零排队：按官方能力表，三个本地模拟器（braket 25 / 量旋 24 / 本源 30 比特）
+    # 都满足「比特数上限 + 零排队 + 免费 + 免账号」，正确答案集是三者；回复含任一即通过。
+    ("我需要运行一个 15 比特电路，且零排队等待，选哪个平台？",
+     ("braket_local_simulator", "spinq_taurus_simulator", "originq_local_simulator")),
+    ("我要用最大的免费模拟器跑 30 比特电路", ("originq_local_simulator",)),
+    ("跑 72 比特的悟空真机", ("originq_wukong",)),
 ]
 
 IDEALS = {
@@ -125,13 +128,15 @@ def verify_qasm_case(prompt: str, target: str) -> None:
         print(f"        电路: {qasm.splitlines()[0]} .. {len(qasm.splitlines())} 行")
 
 
-def verify_backend_case(prompt: str, expected_id: str) -> None:
+def verify_backend_case(prompt: str, expected_ids: tuple) -> None:
     t0 = time.time()
     reply = adapter.agent_chat(prompt)
     elapsed = time.time() - t0
-    ok = expected_id in reply
-    check(f"L2:backend:{expected_id}", ok,
-          f"回复须包含 {expected_id}（耗时 {elapsed:.0f}s）\n回复: {(reply or '')[:150]}")
+    hit = [i for i in expected_ids if i in reply]
+    ok = bool(hit)
+    check(f"L2:backend:{expected_ids[0]}", ok,
+          f"回复须包含正确答案集中的任一 id {expected_ids}（耗时 {elapsed:.0f}s）"
+          f"\n回复: {(reply or '')[:150]}")
 
 
 def main() -> int:
