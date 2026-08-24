@@ -36,3 +36,8 @@ Thumbs.db
 
 # 本地自测输出
 /self_check*.json
+
+# 本地提交流程辅助（保留在本机使用，不入库、不推送）
+/starter_kit/submit.sh
+/starter_kit/SUBMISSION.md
+/starter_kit/final_check.sh

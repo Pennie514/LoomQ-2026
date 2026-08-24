@@ -191,7 +191,7 @@ python3 starter_kit/real_machine.py originq_wukong \
    （含真实 `job_id`、`timestamp`、counts 主峰）；
 2. 把 `starter_kit/evidence/README.md` 中 **「L1 真机」** 的方框改为 `[x]`，
    并按模板填写平台、job ID、运行时间、shots、实际执行的 QASM 与结果文件路径；
-3. 提交到 fork 并 push（流程见 `SUBMISSION.md`）。
+3. 按赛题官方提交流程（fork → push → 提交 Issue）完成提交。
 
 > ⚠️ 不要提交任何 API Key / Token / 私钥文件到仓库。凭证只放本机环境变量。
 > `.gitignore` 已排除常见凭证文件名；若自定义了路径，请再次确认没有入库。

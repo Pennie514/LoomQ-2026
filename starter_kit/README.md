@@ -14,7 +14,6 @@
 | Web 界面（零依赖） | `python3 loomq_web.py` → http://127.0.0.1:8080 |
 | 引导式 CLI | `python3 loomq_cli.py` |
 | 真机接入与 API 申请 | [`HARDWARE_ACCESS.md`](HARDWARE_ACCESS.md) + `python3 real_machine.py` |
-| GitHub 提交流程 | [`SUBMISSION.md`](SUBMISSION.md) |
 | 人工评分证据 | [`evidence/README.md`](evidence/README.md) |
 
 ```bash
