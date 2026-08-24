@@ -37,21 +37,26 @@ counts：{"00": 4028, "11": 2174, "10": 1938, "01": 52}
 溯源：cloud.spinq.cn 控制台按 task_code=G-260824-0002 查询
 ```
 
-**本源悟空真机**（`originq_wukong`，待申请 API Token 后运行）：
+**本源 180 比特超导真机**（`originq_wukong`，已跑通 ✅）：
 
 ```text
-平台：本源悟空 72 比特超导真机（chip_id=72）
+平台：本源 180 比特超导真机（本源180，chip_id=180）
 命令：
   export ORIGINQ_API_TOKEN="<你的 API Token>"
   python3 starter_kit/real_machine.py originq_wukong \
       --qasm starter_kit/circuits/bell.qasm --shots 8192 \
       --config starter_kit/evidence/config_originq_wukong.json \
+      --chip-id 180 \
       --out starter_kit/evidence/files/originq_wukong_result.json
-job_id（task_id）：[填写]
-运行时间：[填写，UTC]
+job_id（task_id）：9080D4D192FDF69809FBDFDA9E19DB47
+运行时间：2026-08-24T05:27:21Z（UTC）
 shots：8192
 实际执行的 QASM：starter_kit/circuits/bell.qasm
 原始结果：starter_kit/evidence/files/originq_wukong_result.json
+counts：{"00": 4331, "11": 3860, "01": 0, "10": 1}
+主峰核对：理想 Bell 主峰 {00, 11}；实测 00(52.9%)/11(47.1%)，01/10≈0 → 主峰命中 ✅
+溯源：qcloud.originqc.com.cn 工作台按 task_id=9080D4D192FDF69809FBDFDA9E19DB47 查询
+说明：本源真机返回概率字典，counts 由 概率 × shots 换算（real_machine.py 已按此解析）
 ```
 
 **AWS Braket**（可选，允许以本地模拟器替代）：

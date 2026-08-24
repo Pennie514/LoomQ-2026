@@ -248,15 +248,16 @@ def _run_originq_wukong(qasm_str: str, cfg: Dict[str, Any], out: str | None) -> 
         if result is None:
             raise RuntimeError(f"本源悟空任务超时：task_id={task_id}")
 
-        # 归一化 counts：转二进制串，并统一为最右 c[0]
+        # 归一化 counts：本源真机返回的是「测量位串 -> 概率(浮点)」字典，
+        # 位串键最右为 c[0]（与本地 CPUQVM 同一约定，即统一 Schema 的 little 序），
+        # 因此**不反转键**，并把概率换算成 counts：count = round(prob * shots)。
         n_qubits = max((len(k) for k in result), default=0) if isinstance(result, dict) else 0
         counts: Dict[str, int] = {}
         for key, value in (result or {}).items():
-            if isinstance(key, int) or (isinstance(key, str) and key.isdigit()):
-                bitstr = bin(int(key))[2:]
-            else:
-                bitstr = str(key)
-            counts[bitstr[::-1]] = int(value)
+            bitstr = str(key) if not (isinstance(key, int) or (isinstance(key, str) and key.isdigit())) \
+                else bin(int(key))[2:].zfill(n_qubits)
+            prob = float(value)
+            counts[bitstr] = int(round(prob * shots))
 
         payload = {
             "backend": cfg.get("backend", "originq_wukong"),
