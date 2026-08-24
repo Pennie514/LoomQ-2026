@@ -212,13 +212,23 @@ def _run_originq_wukong(qasm_str: str, cfg: Dict[str, Any], out: str | None) -> 
     try:
         prog, _qreg, _creg = pq.convert_qasm_string_to_qprog(qasm_str, machine)
         print(f"  正在提交到本源悟空真机（chip_id={chip_id}，{shots} shots）……")
-        task_id = machine.async_real_chip_measure(
-            prog, shot=shots, chip_id=chip_id,
-            is_amend=bool(cfg.get("is_amend", True)),
-            is_mapping=bool(cfg.get("is_mapping", True)),
-            is_optimization=bool(cfg.get("is_optimization", True)),
-            task_name=task_name,
-        )
+        try:
+            task_id = machine.async_real_chip_measure(
+                prog, shot=shots, chip_id=chip_id,
+                is_amend=bool(cfg.get("is_amend", True)),
+                is_mapping=bool(cfg.get("is_mapping", True)),
+                is_optimization=bool(cfg.get("is_optimization", True)),
+                task_name=task_name,
+            )
+        except Exception as exc:  # noqa: BLE001
+            if "maintenance" in str(exc).lower() or "维护" in str(exc):
+                raise RuntimeError(
+                    "本源悟空真机当前处于维护状态（平台侧调度，非代码问题）。\n"
+                    "  解决办法：过 15–30 分钟重试一次，直到返回 task_id。\n"
+                    "  重试命令与本次相同；维护结束前会一直提示，属正常现象。\n"
+                    "  也可先提交当前版本（量旋真机证据已达标），悟空跑通后再用新 Issue 重新提交。"
+                ) from exc
+            raise RuntimeError(f"本源悟空任务提交失败：{exc}") from exc
         print(f"  任务已提交，task_id={task_id}，开始轮询结果……")
 
         deadline = time.time() + int(cfg.get("timeout_seconds", 3600))
@@ -355,8 +365,11 @@ def main() -> int:
         local = adapter.run(qasm_str, {"spinq_cloud": "spinq",
                                        "originq_wukong": "originq",
                                        "braket_cloud": "braket"}[args.platform], 4096)
-        top = max(local["counts"], key=local["counts"].get)
-        print(f"  本地模拟自验：主峰 |{top}>（{local['counts'][top]}/4096），"
+        top = sorted(local["counts"], key=lambda s: local["counts"][s], reverse=True)
+        # 显示 Top-2（如 Bell/GHZ 的理想分布是两个等概率主峰）
+        top_str = "、".join(f"|{s}>" for s in top[:2])
+        top_detail = "，".join(f"|{s}>={local['counts'][s]}" for s in top[:3])
+        print(f"  本地模拟自验：理想主峰 {top_str}（4096 shots：{top_detail}），"
               f"将据此核对真机主峰是否命中。")
     except Exception as exc:
         print(f"  [警告] 本地模拟自验失败（不影响提交，仅提示）：{exc}")
