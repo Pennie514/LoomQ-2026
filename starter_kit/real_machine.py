@@ -150,7 +150,18 @@ def _run_spinq_cloud(qasm_str: str, cfg: Dict[str, Any], out: str | None) -> Dic
         config.configure_measure_qubits(cfg["measure_qubits"])
 
     print(f"  正在提交到量旋云（平台 {platform_code}，{shots} shots）……")
-    result = backend.execute(ir, config)
+    try:
+        result = backend.execute(ir, config)
+    except Exception as exc:  # noqa: BLE001
+        if "No machine is running" in str(exc):
+            raise RuntimeError(
+                f"平台 {platform_code} 当前没有机器在线（量子真机按调度轮流开机）。\n"
+                "  解决办法：换一台在线的真机再跑（可先运行下面的状态检查脚本）：\n"
+                "    python3 starter_kit/check_spinq_platforms.py\n"
+                "  然后把在线的平台代码（如 gemini_vp / triangulum_vp）写入\n"
+                "  starter_kit/evidence/config_spinq_cloud.json 的 platform_code 再重跑。"
+            ) from exc
+        raise RuntimeError(f"量旋云任务提交失败：{exc}") from exc
     job_id = getattr(result, "task_code", None) or f"spinq-cloud-{uuid.uuid4().hex[:12]}"
 
     # spinq 计数 key 最左为 q[0]（与本地模拟器同一约定）→ 统一为最右 c[0]
