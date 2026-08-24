@@ -347,6 +347,8 @@ def main() -> int:
     parser.add_argument("--qasm-str", help="直接传入 OpenQASM 2.0 字符串（自定义输入）")
     parser.add_argument("--shots", type=int, default=None, help="采样次数")
     parser.add_argument("--config", help="JSON 配置文件（自定义输入：平台/映射/任务名等）")
+    parser.add_argument("--chip-id", type=int, default=None,
+                        help="本源真机芯片号（默认 72=悟空；7/5/2=悟源系列），覆盖配置文件")
     parser.add_argument("--out", help="结果输出路径（默认 evidence/files/<platform>_result_*.json）")
     args = parser.parse_args()
 
@@ -359,6 +361,8 @@ def main() -> int:
     cfg = _load_config(args.config, args.platform)
     if args.shots is not None:
         cfg["shots"] = args.shots
+    if args.chip_id is not None:
+        cfg["chip_id"] = args.chip_id
 
     # 本地先做一遍语义自验：同一电路在无噪声模拟器上应得到理想分布
     try:
