@@ -102,6 +102,13 @@ BASIC_STEPS = [
     ("换平台再跑一次",
      "同一份电路，在量旋/本源/AWS 三个平台各跑一次，结果分布一致——"
      "这就是本工具的意义：一份电路，到处能跑，不用学任何平台的「黑话」。"),
+    ("可选：配置模型服务（解锁 生成/纠错/选平台）",
+     "上面的第 4 步需要模型服务。正式评测时组委会会自动注入，你无需操作。"
+     "想在本地体验完整功能，先在终端执行三行命令，然后刷新本页面："
+     "export LOOMQ_LLM_BASE_URL=\"https://api.deepseek.com\"；"
+     "export LOOMQ_LLM_API_KEY=\"sk-你的密钥\"；"
+     "export LOOMQ_LLM_MODEL=\"deepseek-chat\"。"
+     "不配置也没关系：实验与科普完全可用，评测时也能正常评分。"),
 ]
 
 CONCEPTS = [
@@ -380,22 +387,34 @@ async function checkConfig() {
     const r = await fetch('/api/config-status');
     const d = await r.json();
     llmReady = d.configured;
+    const cfgBlock = '<code>export LOOMQ_LLM_BASE_URL="https://api.deepseek.com"</code> '
+      + '<code>export LOOMQ_LLM_API_KEY="sk-..."</code> '
+      + '<code>export LOOMQ_LLM_MODEL="deepseek-chat"</code>';
     if (!llmReady) {
-      banner('🔑 模型服务未配置：<b>生成电路 / 纠错 / 选平台</b> 暂时用不了（正式评测时组委会会自动注入）。'
-        + '你可以先玩 <b>现成实验</b> 和 <b>科普</b>——完全离线，不需要任何配置。<br>'
-        + '想本地体验完整功能，配置方法：<code>export LOOMQ_LLM_BASE_URL="https://api.deepseek.com"</code> '
-        + '<code>export LOOMQ_LLM_API_KEY="sk-..."</code> <code>export LOOMQ_LLM_MODEL="deepseek-chat"</code>', 'warn');
+      banner('🔑 <b>第 1 步建议：配置模型服务（可选）</b><br>'
+        + '不配置：<b>现成实验 / 科普 / 零基础入门</b> 完全可用（离线）。<br>'
+        + '配置后解锁：<b>生成电路 / 纠错 / 选平台</b>（正式评测时组委会自动注入，无需操作）。<br>'
+        + '本地体验完整功能，在终端执行后刷新本页：<br>' + cfgBlock
+        + '<br><button class="ghost" onclick="copyCfg()">📋 复制配置命令</button>', 'warn', false);
     } else {
-      banner('✅ 模型服务已连接（' + d.model + '），所有功能可用！', 'ok');
+      banner('✅ 模型服务已连接（' + esc(d.model) + '），所有功能可用！', 'ok', true);
     }
   } catch (e) { /* 忽略 */ }
 }
 
-function banner(msg, kind) {
+function copyCfg() {
+  const text = 'export LOOMQ_LLM_BASE_URL="https://api.deepseek.com"\n'
+    + 'export LOOMQ_LLM_API_KEY="sk-你的密钥"\n'
+    + 'export LOOMQ_LLM_MODEL="deepseek-chat"';
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => banner('✅ 配置命令已复制，粘贴到终端执行后刷新本页', 'ok', true));
+  else prompt('复制下面的配置命令：', text);
+}
+
+function banner(msg, kind, autoHide) {
   const el = $('banner');
-  el.innerHTML = msg;
+  el.innerHTML = msg + (autoHide === false ? '<br><button class="ghost" onclick="this.parentNode.classList.remove(\'show\')">✕ 知道了</button>' : '');
   el.className = 'banner show ' + (kind || '');
-  setTimeout(() => el.classList.remove('show'), 30000);
+  if (autoHide !== false) setTimeout(() => el.classList.remove('show'), 30000);
 }
 
 async function post(url, body) {
