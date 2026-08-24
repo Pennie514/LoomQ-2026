@@ -102,7 +102,21 @@ def _run_spinq_cloud(qasm_str: str, cfg: Dict[str, Any], out: str | None) -> Dic
     shots = int(cfg.get("shots", 8192))
     host = cfg.get("host", "http://cloud.spinq.cn:6060")
 
-    backend = get_spinq_cloud(username, keyfile, host)
+    try:
+        backend = get_spinq_cloud(username, keyfile, host)
+    except Exception as exc:  # noqa: BLE001
+        hint = str(exc)
+        if "Authentication failed" in hint or "No active user" in hint:
+            raise RuntimeError(
+                "量旋云登录失败（用户名/密钥不匹配）。请检查：\n"
+                "  1) SPINQ_CLOUD_USERNAME 必须是你在 cloud.spinq.cn 注册的用户名\n"
+                "     （登录网页版 cloud.spinq.cn → 个人中心查看准确用户名，可能不是 pennie514）；\n"
+                "  2) 账号是否完成邮箱/手机验证（未激活会报 No active user）；\n"
+                "  3) 公钥是否已添加到账号：把 ~/.ssh/spinq_cloud.pub 内容粘到\n"
+                "     cloud.spinq.cn → 个人中心 → SSH 公钥/密钥管理（必须是这把 RSA 公钥）；\n"
+                f"  原始错误：{exc}"
+            ) from exc
+        raise RuntimeError(f"量旋云连接失败：{exc}") from exc
     platforms = backend.get_platform_list()
     print("  量旋云可用平台：", platforms)
     platform_code = cfg.get("platform_code")
