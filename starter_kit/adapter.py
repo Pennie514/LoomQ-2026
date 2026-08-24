@@ -382,10 +382,12 @@ def agent_chat(prompt: str) -> str:
             r"(排队|等待|免费|账号|立刻|马上|最快|零排队|不用注册|真机|硬件|qpu)", prompt_lower):
         is_backend_selection = True
     is_error_fixing = any(kw in prompt_lower for kw in
-                          ("报错", "错误", "修复", "修好", "fix", "error", "bug", "坏了"))
-    # 纠错任务通常带有残缺代码，用代码特征兜底识别
+                          ("报错", "错误", "修复", "修好", "有问题", "不对", "哪里", "看看",
+                           "为什么", "fix", "error", "bug", "坏了"))
+    # 纠错任务通常带有残缺代码，用代码特征兜底识别（大小写不敏感）
     if not is_backend_selection and not is_error_fixing:
-        if re.search(r"(OPENQASM|qreg|\bH\s+q|\bCX\s+q)", prompt):
+        if re.search(r"(OPENQASM|qreg|q\[|\bcx\b|\bcnot\b|\bh\s+q|\bCX\s+q|q\d)",
+                     prompt, re.IGNORECASE):
             is_error_fixing = True
 
     if is_backend_selection and not is_error_fixing:
