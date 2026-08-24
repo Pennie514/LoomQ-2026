@@ -279,6 +279,7 @@ PAGE = r"""<!DOCTYPE html>
     <button data-p="pick">🧭 帮我选平台</button>
     <button data-p="lab">🧪 现成实验（免配置）</button>
     <button data-p="learn">📚 大白话科普</button>
+    <button data-p="cfg">⚙️ 配置（可选）</button>
   </nav>
 
   <div id="banner" class="banner"></div>
@@ -373,6 +374,42 @@ PAGE = r"""<!DOCTYPE html>
     </div>
   </section>
 
+  <!-- 6 配置 -->
+  <section id="p-cfg" class="panel">
+    <div class="card">
+      <h3>⚙️ 配置（可选，全部可跳过）</h3>
+      <p>在页面里直接填，不用碰命令行。配置仅保存在<b>本机内存</b>（不写入任何文件、不提交到仓库），
+         重启服务后需重新填写。正式评测时组委会会自动注入模型服务，无需任何配置。</p>
+
+      <h3 style="margin-top:20px">① 模型服务（解锁 生成电路 / 纠错 / 选平台）</h3>
+      <div class="row">
+        <input type="text" id="cfg-llm-base" placeholder="https://api.deepseek.com" style="flex:2">
+        <input type="text" id="cfg-llm-model" placeholder="deepseek-chat" style="flex:1">
+      </div>
+      <div class="row">
+        <input type="password" id="cfg-llm-key" placeholder="sk- 开头的 API Key（点小眼睛可显示）" style="flex:3">
+      </div>
+
+      <h3 style="margin-top:20px">② 量旋真机凭证（解锁「🚀 跑上量旋真机」）</h3>
+      <div class="row">
+        <input type="text" id="cfg-spinq-user" placeholder="量旋云用户名（cloud.spinq.cn 注册）" style="flex:1">
+        <input type="text" id="cfg-spinq-keyfile" placeholder="私钥文件路径，如 /Users/xxx/.ssh/spinq_cloud" style="flex:2">
+      </div>
+
+      <h3 style="margin-top:20px">③ 本源量子云凭证（解锁「🚀 跑上本源180真机」）</h3>
+      <div class="row">
+        <input type="password" id="cfg-originq-token" placeholder="API Token（qcloud.originqc.com.cn 个人中心→账号设置）" style="flex:3">
+      </div>
+
+      <div class="row">
+        <button class="go" id="cfg-save">💾 保存配置</button>
+        <button class="ghost" id="cfg-clear">🗑 清除配置</button>
+        <span class="note" id="cfg-status-note"></span>
+      </div>
+      <div class="out" id="cfg-out"></div>
+    </div>
+  </section>
+
   <footer>LoomQ · SheNicest 2026 量子赛道 · 命令行版：<code>python3 starter_kit/loomq_cli.py</code></footer>
 </div>
 
@@ -394,26 +431,69 @@ function goTab(name) {
 document.querySelectorAll('#nav button').forEach(b => b.onclick = () => goTab(b.dataset.p));
 
 /* 模型服务状态 */
-let llmReady = false;
+let llmReady = false, spinqReady = false, originqReady = false;
 async function checkConfig() {
   try {
     const r = await fetch('/api/config-status');
     const d = await r.json();
-    llmReady = d.configured;
+    llmReady = d.llm;
+    spinqReady = d.spinq;
+    originqReady = d.originq;
     const cfgBlock = '<code>export LOOMQ_LLM_BASE_URL="https://api.deepseek.com"</code> '
       + '<code>export LOOMQ_LLM_API_KEY="sk-..."</code> '
       + '<code>export LOOMQ_LLM_MODEL="deepseek-chat"</code>';
     if (!llmReady) {
       banner('🔑 <b>第 1 步建议：配置模型服务（可选）</b><br>'
-        + '不配置：<b>现成实验 / 科普 / 零基础入门</b> 完全可用（离线）。<br>'
+        + '不配置：<b>现成实验 / 科普 / 零基础入门 / 真机体验</b> 完全可用。<br>'
         + '配置后解锁：<b>生成电路 / 纠错 / 选平台</b>（正式评测时组委会自动注入，无需操作）。<br>'
-        + '本地体验完整功能，在终端执行后刷新本页：<br>' + cfgBlock
-        + '<br><button class="ghost" onclick="copyCfg()">📋 复制配置命令</button>', 'warn', false);
+        + '两种方式任选：① 点上方【⚙️ 配置】在页面里直接填；② 终端执行后刷新：<br>' + cfgBlock
+        + '<br><button class="ghost" onclick="goTab(\'cfg\')">⚙️ 打开配置面板</button> '
+        + '<button class="ghost" onclick="copyCfg()">📋 复制终端命令</button>', 'warn', false);
     } else {
-      banner('✅ 模型服务已连接（' + esc(d.model) + '），所有功能可用！', 'ok', true);
+      banner('✅ 模型服务已连接（' + esc(d.model || '') + '），所有功能可用！', 'ok', true);
     }
+    updateCfgStatus();
   } catch (e) { /* 忽略 */ }
 }
+
+function updateCfgStatus() {
+  const parts = [];
+  parts.push('模型服务: ' + (llmReady ? '✅ 已配置' : '⬜ 未配置'));
+  parts.push('量旋真机: ' + (spinqReady ? '✅ 已配置' : '⬜ 未配置'));
+  parts.push('本源真机: ' + (originqReady ? '✅ 已配置' : '⬜ 未配置'));
+  const el = $('cfg-status-note');
+  if (el) el.innerHTML = parts.join('　·　');
+}
+
+$('cfg-save').onclick = async () => {
+  const payload = {
+    llm: {
+      base_url: $('cfg-llm-base').value.trim(),
+      api_key: $('cfg-llm-key').value.trim(),
+      model: $('cfg-llm-model').value.trim(),
+    },
+    spinq: {
+      username: $('cfg-spinq-user').value.trim(),
+      keyfile: $('cfg-spinq-keyfile').value.trim(),
+    },
+    originq: { api_token: $('cfg-originq-token').value.trim() },
+  };
+  const r = await post('/api/config', payload);
+  if (r.ok) {
+    banner('✅ 配置已保存（仅内存）。' + (r.llm ? ' 模型服务已就绪，可刷新使用生成/纠错。' : '')
+      + (r.spinq ? ' 量旋真机已就绪。' : '') + (r.originq ? ' 本源真机已就绪。' : ''), 'ok', true);
+    checkConfig();
+  } else {
+    banner('⚠️ 配置保存失败：' + esc(r.error || ''), 'err');
+  }
+};
+$('cfg-clear').onclick = async () => {
+  const r = await post('/api/config-clear', {});
+  banner('🗑 已清除页面配置（进程内）。', 'ok', true);
+  ['cfg-llm-base', 'cfg-llm-key', 'cfg-llm-model', 'cfg-spinq-user', 'cfg-spinq-keyfile', 'cfg-originq-token']
+    .forEach(id => { const el = $(id); if (el) el.value = ''; });
+  checkConfig();
+};
 
 function copyCfg() {
   const text = 'export LOOMQ_LLM_BASE_URL="https://api.deepseek.com"\n'
@@ -689,13 +769,45 @@ class Handler(BaseHTTPRequestHandler):
 
     def _config_status(self):
         import os
-        missing = [name for name in ("LOOMQ_LLM_BASE_URL", "LOOMQ_LLM_API_KEY", "LOOMQ_LLM_MODEL")
-                   if not os.environ.get(name)]
         self._send(200, json.dumps({
-            "configured": not missing,
-            "missing": missing,
+            "llm": bool(os.environ.get("LOOMQ_LLM_BASE_URL") and os.environ.get("LOOMQ_LLM_API_KEY")),
+            "spinq": bool(os.environ.get("SPINQ_CLOUD_USERNAME") and os.environ.get("SPINQ_CLOUD_KEYFILE")),
+            "originq": bool(os.environ.get("ORIGINQ_API_TOKEN")),
             "model": os.environ.get("LOOMQ_LLM_MODEL", ""),
         }).encode("utf-8"))
+
+    def _save_config(self, payload):
+        """把页面填的配置写入进程环境变量（仅内存，不落盘、不入库）。"""
+        import os
+        llm = payload.get("llm") or {}
+        spinq = payload.get("spinq") or {}
+        originq = payload.get("originq") or {}
+        if llm.get("base_url"):
+            os.environ["LOOMQ_LLM_BASE_URL"] = str(llm["base_url"]).rstrip("/")
+        if llm.get("api_key"):
+            os.environ["LOOMQ_LLM_API_KEY"] = str(llm["api_key"])
+        if llm.get("model"):
+            os.environ["LOOMQ_LLM_MODEL"] = str(llm["model"])
+        if spinq.get("username"):
+            os.environ["SPINQ_CLOUD_USERNAME"] = str(spinq["username"])
+        if spinq.get("keyfile"):
+            keyfile = str(spinq["keyfile"]).replace("~", str(Path.home()))
+            os.environ["SPINQ_CLOUD_KEYFILE"] = keyfile
+        if originq.get("api_token"):
+            os.environ["ORIGINQ_API_TOKEN"] = str(originq["api_token"])
+        self._send(200, json.dumps({
+            "ok": True,
+            "llm": bool(os.environ.get("LOOMQ_LLM_API_KEY")),
+            "spinq": bool(os.environ.get("SPINQ_CLOUD_KEYFILE")),
+            "originq": bool(os.environ.get("ORIGINQ_API_TOKEN")),
+        }).encode("utf-8"))
+
+    def _clear_config(self):
+        import os
+        for name in ("LOOMQ_LLM_BASE_URL", "LOOMQ_LLM_API_KEY", "LOOMQ_LLM_MODEL",
+                     "SPINQ_CLOUD_USERNAME", "SPINQ_CLOUD_KEYFILE", "ORIGINQ_API_TOKEN"):
+            os.environ.pop(name, None)
+        self._send(200, json.dumps({"ok": True}).encode("utf-8"))
 
     def do_POST(self):
         try:
@@ -710,6 +822,10 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_run(payload)
         elif self.path == "/api/run-real":
             self._handle_run_real(payload)
+        elif self.path == "/api/config":
+            self._save_config(payload)
+        elif self.path == "/api/config-clear":
+            self._clear_config()
         else:
             self._send(404, json.dumps({"error": "unknown api"}).encode("utf-8"))
 
