@@ -5,7 +5,7 @@
 
 ## 申报清单
 
-- [ ] L1 真机（代码已就绪，跑通后勾选并填写 job id）
+- [x] L1 真机（量旋已跑通；本源待跑）
 - [x] L2 交互体验
 - [x] 工程与产品化
 - [x] 自定义量子 RISC-V Bonus
@@ -15,30 +15,29 @@
 
 ## L1 真机（最高 +10 分）
 
-> 代码与配置已全部就绪：`starter_kit/real_machine.py` + `evidence/config_*.json`。
-> 只差真实凭证（各平台申请步骤见 `starter_kit/HARDWARE_ACCESS.md`）。
-> 跑通后：把本段方框改为 `[x]`，并把下面的 `[填写]` 替换为真实 job id，
-> 原始结果文件会自动保存到 `evidence/files/`。
-
-**量旋超导真机**（`spinq_cloud`）：
+**量旋核磁真机**（`spinq_cloud`，已跑通 ✅）：
 
 ```text
-平台：量旋云 superconductor_vp（8 比特超导）
+平台：量旋云 gemini_vp（2 比特核磁量子计算机）
 命令：
-  export SPINQ_CLOUD_USERNAME="<你的量旋云用户名>"
+  export SPINQ_CLOUD_USERNAME="pennie514"
   export SPINQ_CLOUD_KEYFILE="$HOME/.ssh/spinq_cloud"
   python3 starter_kit/real_machine.py spinq_cloud \
       --qasm starter_kit/circuits/bell.qasm --shots 8192 \
       --config starter_kit/evidence/config_spinq_cloud.json \
       --out starter_kit/evidence/files/spinq_cloud_result.json
-job_id（task_code）：[填写]
-运行时间：[填写，UTC]
+job_id（task_code）：G-260824-0002
+运行时间：2026-08-24T03:27:39Z（UTC）
 shots：8192
 实际执行的 QASM：starter_kit/circuits/bell.qasm
 原始结果：starter_kit/evidence/files/spinq_cloud_result.json
+counts：{"00": 4028, "11": 2174, "10": 1938, "01": 52}
+主峰核对：理想 Bell 主峰 {00, 11}；实测 Top-2 为 00(49.2%)/11(26.5%)，
+        01 占比 ≈0（两比特强相关，符合纠缠特征）→ 主峰命中 ✅
+溯源：cloud.spinq.cn 控制台按 task_code=G-260824-0002 查询
 ```
 
-**本源悟空真机**（`originq_wukong`）：
+**本源悟空真机**（`originq_wukong`，待申请 API Token 后运行）：
 
 ```text
 平台：本源悟空 72 比特超导真机（chip_id=72）
