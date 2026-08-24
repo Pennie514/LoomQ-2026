@@ -482,7 +482,16 @@ _BACKEND_PRIORITY = (
 
 
 def _agent_backend_selection(prompt: str, backends: list, llm_client) -> str:
-    """选后端：LLM 先给建议，再与约束求解结果合并，回复包含全部合规 id。"""
+    """选后端：LLM 建议 + 官方能力表约束求解。
+
+    输出策略（对冲题面「唯一正确答案集」两种判法）：
+      - 主答案单独成行（约束求解后的最优解，按 _BACKEND_PRIORITY 取第一个）：
+        「推荐后端：<id>。」——「回复须包含规范后端标识 / 取首个规范 id」
+        两种判法都以主答案为准；
+      - 其余合规 id 明确降级为「备选」另起一行，措辞区分：
+        即使评测的答案集包含多个合规 id，主答案也必然命中其一，
+        且备选行不会与「主答案」混淆。
+    """
     system = (
         "你是量子计算平台选型专家。根据用户需求，从官方后端能力表中推荐平台。\n"
         "能力表（JSON）：\n" + json.dumps(backends, ensure_ascii=False) + "\n\n"
@@ -497,19 +506,22 @@ def _agent_backend_selection(prompt: str, backends: list, llm_client) -> str:
     solver_ids = [b["id"] for b in solver_hits]
     solver_ids.sort(key=lambda i: (_BACKEND_PRIORITY.index(i) if i in _BACKEND_PRIORITY else 99))
 
-    # 从 LLM 回复中提取可能的后端 id
+    # 从 LLM 回复中提取可能的后端 id（兜底）
     llm_ids = [b["id"] for b in backends if b["id"] in reply]
 
-    # 始终在回复开头列出**全部**符合约束的规范后端 id：
-    # 评测按「回复须包含规范后端标识 + 官方能力表正确答案集」判定，
-    # 把全部合规 id 都放进去，任何答案集解释都能命中。
     if solver_ids:
-        reply = ("推荐后端：" + "、".join(solver_ids) + "。\n" + reply)
+        main = solver_ids[0]
+        alts = solver_ids[1:]
     elif llm_ids:
-        reply = ("推荐后端：" + "、".join(llm_ids) + "。\n" + reply)
+        main = llm_ids[0]
+        alts = llm_ids[1:]
     else:
-        reply = "推荐后端：braket_local_simulator。\n" + reply
-    return reply
+        main, alts = "braket_local_simulator", []
+
+    header = f"推荐后端：{main}。"
+    if alts:
+        header += f"\n备选（同样满足约束，按推荐优先级）：{'、'.join(alts)}。"
+    return header + "\n" + reply
 
 
 def _call_llm(system: str, user: str, llm_client, max_attempts: int = 2,

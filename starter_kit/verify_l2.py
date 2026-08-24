@@ -133,10 +133,18 @@ def verify_backend_case(prompt: str, expected_ids: tuple) -> None:
     reply = adapter.agent_chat(prompt)
     elapsed = time.time() - t0
     hit = [i for i in expected_ids if i in reply]
-    ok = bool(hit)
+    ok_contain = bool(hit)
+    # 「首个规范 id」判法：回复开头第一个出现的后端 id 必须在答案集内
+    import re
+    first = None
+    m = re.search(r"推荐后端：(\S+?)。", reply or "")
+    if m:
+        first = m.group(1).strip("`").strip()
+    ok_first = first in expected_ids
+    ok = ok_contain and (first is None or ok_first)
     check(f"L2:backend:{expected_ids[0]}", ok,
-          f"回复须包含正确答案集中的任一 id {expected_ids}（耗时 {elapsed:.0f}s）"
-          f"\n回复: {(reply or '')[:150]}")
+          f"答案集 {expected_ids}；包含命中={ok_contain}，首个id={first!r} 命中={ok_first}"
+          f"（耗时 {elapsed:.0f}s）\n回复: {(reply or '')[:150]}")
 
 
 def main() -> int:
