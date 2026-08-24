@@ -29,6 +29,12 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 import adapter  # noqa: E402
+import real_machine  # noqa: E402   # 真机接入（Web 一键上真实量子机）
+
+REAL_BACKENDS = [
+    ("spinq_cloud", "量旋超导/核磁真机", "真实量子计算机（2-8 比特）"),
+    ("originq_wukong", "本源 180 超导真机", "真实量子计算机（180 比特）"),
+]
 
 BACKENDS = [
     ("spinq", "量旋本地模拟器", "最轻量，秒出结果"),
@@ -102,13 +108,19 @@ BASIC_STEPS = [
     ("换平台再跑一次",
      "同一份电路，在量旋/本源/AWS 三个平台各跑一次，结果分布一致——"
      "这就是本工具的意义：一份电路，到处能跑，不用学任何平台的「黑话」。"),
+    ("🚀 把第一个实验跑上「真实量子机」",
+     "这是最激动人心的一步：点【现成实验】里的「Bell 态」，先本地跑一次看懂分布，"
+     "再点「🚀 跑上量旋真机」或「🚀 跑上本源180真机」。"
+     "等待几分钟（真机要排队），你会看到真实量子芯片返回的结果："
+     "主峰和理想一致（00/11 最多），但带上了真实噪声（01/10 偶尔出现）——"
+     "这就是「第一次指挥真实的量子计算机」的感觉。"),
     ("可选：配置模型服务（解锁 生成/纠错/选平台）",
      "上面的第 4 步需要模型服务。正式评测时组委会会自动注入，你无需操作。"
      "想在本地体验完整功能，先在终端执行三行命令，然后刷新本页面："
      "export LOOMQ_LLM_BASE_URL=\"https://api.deepseek.com\"；"
      "export LOOMQ_LLM_API_KEY=\"sk-你的密钥\"；"
      "export LOOMQ_LLM_MODEL=\"deepseek-chat\"。"
-     "不配置也没关系：实验与科普完全可用，评测时也能正常评分。"),
+     "不配置也没关系：实验/科普/真机体验完全可用，评测时也能正常评分。"),
 ]
 
 CONCEPTS = [
@@ -369,6 +381,7 @@ const $ = id => document.getElementById(id);
 const EXAMPLES = __EXAMPLES__;
 const CONCEPTS = __CONCEPTS__;
 const BACKENDS = __BACKENDS__;
+const REAL_BACKENDS = __REAL_BACKENDS__;
 const BASIC_STEPS = __BASIC_STEPS__;
 
 /* 导航 */
@@ -572,6 +585,39 @@ async function runExample(i) {
     '<div class="row"><button class="ghost" onclick="rerunExample(' + i + ',1)">换量旋再跑</button>' +
     '<button class="ghost" onclick="rerunExample(' + i + ',2)">换本源再跑</button>' +
     '<button class="ghost" onclick="rerunExample(' + i + ',0)">换 AWS 再跑</button></div>');
+  out.insertAdjacentHTML('beforeend',
+    '<div class="row" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--line)">' +
+    '<span class="note" style="margin:0">🚀 想体验真实量子计算机？</span>' +
+    '<button class="go" onclick="runReal(' + i + ',0)">🚀 跑上量旋真机</button>' +
+    '<button class="go" onclick="runReal(' + i + ',1)">🚀 跑上本源180真机</button></div>');
+}
+
+async function runReal(i, ri) {
+  const e = EXAMPLES[i];
+  const out = $('lab-out');
+  const [bid, name, desc] = REAL_BACKENDS[ri];
+  out.insertAdjacentHTML('beforeend',
+    `<div id="real-box" style="margin-top:14px;padding:14px;border:1px solid rgba(0,212,255,.35);border-radius:14px;background:rgba(0,212,255,.06)">
+      <b style="color:var(--acc2)">🚀 正在 ${name} 上运行……</b>
+      <div class="note">${esc(desc)}。真机任务需要排队，通常几分钟到十几分钟，请勿关闭页面。提交前会先在本地模拟器自验主峰。</div>
+      <div class="spin" style="margin-top:10px"></div></div>`);
+  try {
+    const r = await post('/api/run-real', {backend: bid, qasm: e.qasm, shots: 2048});
+    const box = $('real-box');
+    if (!box) return;
+    if (r.error) {
+      box.innerHTML = `<b style="color:var(--err)">😕 真机运行未成功：</b><div class="note">${esc(r.error)}</div>`;
+      return;
+    }
+    box.innerHTML = `<b style="color:var(--ok)">✅ ${name} 真机任务完成！</b>
+      <div class="note">这是真实量子计算机返回的结果——和上面的本地模拟相比：主峰一致（00/11 最多），但多了真实噪声（01/10 偶尔出现）。这就是「量子世界本来带噪声」的样子。</div>`;
+    renderHist(box, r.result, 2048);
+    box.insertAdjacentHTML('beforeend',
+      `<div class="note ok">✓ 你的第一个实验已经跑在真实量子计算机上了！job_id：${esc(r.result.job_id || '')}</div>`);
+  } catch (err) {
+    const box = $('real-box');
+    if (box) box.innerHTML = `<b style="color:var(--err)">😕 真机运行失败：</b><div class="note">${esc(String(err))}</div>`;
+  }
 }
 async function rerunExample(i, bi) {
   const e = EXAMPLES[i]; const out = $('lab-out');
@@ -635,6 +681,7 @@ class Handler(BaseHTTPRequestHandler):
                     .replace("__EXAMPLES__", json.dumps(EXAMPLES, ensure_ascii=False))
                     .replace("__CONCEPTS__", json.dumps(CONCEPTS, ensure_ascii=False))
                     .replace("__BACKENDS__", json.dumps(BACKENDS, ensure_ascii=False))
+                    .replace("__REAL_BACKENDS__", json.dumps(REAL_BACKENDS, ensure_ascii=False))
                     .replace("__BASIC_STEPS__", json.dumps(BASIC_STEPS, ensure_ascii=False)))
             self._send(200, page.encode("utf-8"), "text/html; charset=utf-8")
         else:
@@ -661,8 +708,48 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_chat(payload)
         elif self.path == "/api/run":
             self._handle_run(payload)
+        elif self.path == "/api/run-real":
+            self._handle_run_real(payload)
         else:
             self._send(404, json.dumps({"error": "unknown api"}).encode("utf-8"))
+
+    def _handle_run_real(self, payload):
+        """在真实量子机上运行电路（零基础用户一键上真机）。"""
+        import os
+        backend = str(payload.get("backend", "spinq_cloud"))
+        qasm = str(payload.get("qasm", ""))
+        shots = int(payload.get("shots", 2048))
+        if backend == "spinq_cloud":
+            if not (os.environ.get("SPINQ_CLOUD_USERNAME") and os.environ.get("SPINQ_CLOUD_KEYFILE")):
+                self._send(200, json.dumps({"error": "量旋真机凭证未配置。主办方/团队在启动本服务前设置 "
+                                                     "SPINQ_CLOUD_USERNAME 与 SPINQ_CLOUD_KEYFILE 即可（见 HARDWARE_ACCESS.md）。"},
+                                           ensure_ascii=False).encode("utf-8"))
+                return
+            cfg = json.loads((HERE / "evidence" / "config_spinq_cloud.json").read_text(encoding="utf-8"))
+            cfg["shots"] = shots
+            try:
+                result = real_machine._run_spinq_cloud(qasm, cfg, None)
+            except Exception as exc:  # noqa: BLE001
+                self._send(200, json.dumps({"error": str(exc)}, ensure_ascii=False).encode("utf-8"))
+                return
+        elif backend == "originq_wukong":
+            if not os.environ.get("ORIGINQ_API_TOKEN"):
+                self._send(200, json.dumps({"error": "本源量子云凭证未配置。团队在启动本服务前设置 "
+                                                     "ORIGINQ_API_TOKEN 即可（见 HARDWARE_ACCESS.md）。"},
+                                           ensure_ascii=False).encode("utf-8"))
+                return
+            cfg = json.loads((HERE / "evidence" / "config_originq_wukong.json").read_text(encoding="utf-8"))
+            cfg["shots"] = shots
+            cfg.setdefault("chip_id", 180)  # 本源180 当前在线（悟空72 维护中）
+            try:
+                result = real_machine._run_originq_wukong(qasm, cfg, None)
+            except Exception as exc:  # noqa: BLE001
+                self._send(200, json.dumps({"error": str(exc)}, ensure_ascii=False).encode("utf-8"))
+                return
+        else:
+            self._send(400, json.dumps({"error": "unknown real backend"}).encode("utf-8"))
+            return
+        self._send(200, json.dumps({"result": result}, ensure_ascii=False).encode("utf-8"))
 
     def _handle_chat(self, payload):
         prompt = str(payload.get("prompt", "")).strip()
