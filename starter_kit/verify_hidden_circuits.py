@@ -39,7 +39,11 @@ def hellinger(observed: dict, expected: dict) -> float:
 # --- 独立 numpy 态矢参考模拟器（小端，key 最右为 q[0]） ---------------------
 
 def reference_simulate(qasm: str, shots: int = 8192) -> dict:
-    """解析 QASM2 白名单电路并在 numpy 态矢上模拟，返回归一化分布。"""
+    """解析 QASM2 白名单电路并在 numpy 态矢上模拟，返回**精确**归一化分布。
+
+    期望分布直接用态矢概率（|psi|^2），不做二次采样——与官方评测
+    「对比精确理想分布」一致，避免双侧采样噪声把验证结果搞抖。
+    """
     lines = []
     for raw in qasm.splitlines():
         line = raw.split("//", 1)[0].strip()
@@ -138,20 +142,7 @@ def reference_simulate(qasm: str, shots: int = 8192) -> dict:
                     psi[idx], psi[partner] = psi[partner], psi[idx]
 
     probs = np.abs(psi) ** 2
-    rng = random.Random(42)
-    counts: dict = {}
-    for _ in range(shots):
-        r = rng.random()
-        acc = 0.0
-        outcome = dim - 1
-        for idx, p in enumerate(probs):
-            acc += p
-            if r < acc:
-                outcome = idx
-                break
-        key = format(outcome, "0%db" % n)
-        counts[key] = counts.get(key, 0) + 1
-    return {k: v / shots for k, v in counts.items()}
+    return {format(idx, "0%db" % n): float(p) for idx, p in enumerate(probs) if p > 1e-12}
 
 
 # --- 电路生成 ----------------------------------------------------------------
