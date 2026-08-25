@@ -54,8 +54,11 @@ python3 starter_kit/real_machine.py spinq_cloud \
    ```
    把 `spinq_cloud.pub` 的内容粘贴到量旋云后台。
 3. 平台文档：https://cloud.spinq.cn/#/docs ；建议先在控制台跑一次官方示例，确认账号可用。
-4. 真机平台代码：`superconductor_vp`（超导真机，8 比特）。
-   虚拟平台还有 `gemini_vp`（2 比特）、`triangulum_vp`（3 比特），可在本地先练手。
+4. 平台代码：`superconductor_vp`（量旋云文档标注的超导真机平台，8 比特）。
+   另有 `gemini_vp`（2 比特核磁）、`triangulum_vp`（3 比特），可用于先行练手。
+   > 本队实际提交的量旋证据跑在 `gemini_vp` 上（提交时账号未取得 `superconductor_vp`
+   > 可用额度），其平台性质与计分方式见 `evidence/README.md` 的"平台性质如实说明"，
+   > 本队不作自我认定。
    > 运行 `python3 starter_kit/real_machine.py spinq_cloud --qasm ...` 时程序会
    > 打印当前账号可用的全部平台代码，直接照抄进 `--config` 的 `platform_code` 即可。
 

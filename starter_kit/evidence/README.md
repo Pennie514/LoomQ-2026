@@ -18,7 +18,7 @@
 **量旋核磁真机**（`spinq_cloud`，已跑通 ✅）：
 
 ```text
-平台：量旋云 gemini_vp（2 比特核磁量子计算机）
+平台：量旋云 gemini_vp（2 比特核磁平台；平台性质以组委会判定为准，见文末"平台性质如实说明"）
 命令：
   export SPINQ_CLOUD_USERNAME="pennie514"
   export SPINQ_CLOUD_KEYFILE="$HOME/.ssh/spinq_cloud"
@@ -279,7 +279,18 @@ python3 loomq_web.py                                             # Web 入口
 | 平台 | job_id | 主峰占比 | 噪声 | 结果文件 |
 |---|---|---|---|---|
 | 本源 180（180 比特超导真机） | `9080D4D192FDF69809FBDFDA9E19DB47` | 00/11 = **99.99%** | 0.01% | `evidence/files/originq_wukong_result.json` |
-| 量旋 gemini_vp（2 比特核磁真机） | `G-260824-0002` | 00/11 = **75.71%** | 24.29% | `evidence/files/spinq_cloud_result.json` |
+| 量旋 `gemini_vp`（2 比特核磁平台，见下方平台性质说明） | `G-260824-0002` | 00/11 = **75.71%** | 24.29% | `evidence/files/spinq_cloud_result.json` |
+
+**平台性质如实说明（量旋 `gemini_vp`）**：该结果由量旋云 `gemini_vp` 平台代码返回，
+task_code `G-260824-0002` 可在 https://cloud.spinq.cn 控制台溯源。量旋云文档将
+`superconductor_vp`（8 比特超导）标注为真机平台代码，本队提交时该账号下未取得
+`superconductor_vp` 的可用额度，故实跑于 `gemini_vp`。实测主峰 00/11 = 75.71%、
+噪声 24.29%，噪声结构与理想无噪模拟（应为精确 50/50）明显不同，符合物理器件特征。
+
+为避免歧义，本队不就该平台是否计入"真机"作自我认定，交由组委会判定：
+- 若组委会认定 `gemini_vp` 属真机 → 本队满足"≥2 平台真机证据"（本源 180 + 量旋 gemini_vp）；
+- 若认定其不属真机 → 本队**无争议的真机证据以本源 180（180 比特超导，job `9080D4D192FDF69809FBDFDA9E19DB47`）为准，计 1 个平台**，
+  该项按 1 平台阶梯计分，本队不主张 2 平台满分。
 
 零凭证用户通过 `/api/real-replay` 看到的就是上表这两份真实数据（非模拟），
 并被明确告知这是存证回放、job_id 可在平台控制台查询。
