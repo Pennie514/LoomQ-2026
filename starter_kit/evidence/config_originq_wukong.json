@@ -2,7 +2,7 @@
   "platform": "originq_wukong",
   "backend": "originq_wukong",
   "shots": 8192,
-  "chip_id": 72,
+  "chip_id": 180,
   "is_amend": true,
   "is_mapping": true,
   "is_optimization": true,

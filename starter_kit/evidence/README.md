@@ -59,6 +59,20 @@ counts：{"00": 4331, "11": 3860, "01": 0, "10": 1}
 说明：本源真机返回概率字典，counts 由 概率 × shots 换算（real_machine.py 已按此解析）
 ```
 
+**关于本源这份数据的两点如实说明**（便于评委交叉核对）：
+
+1. **芯片标识**：`backend` 字段按赛题后端命名规范填 `originq_wukong`，但本次实际
+   执行芯片为同平台的 **180 比特芯片**（提交时传 `chip_id=180`，见结果文件
+   `meta.chip_id`）。能力表中 `originq_wukong` 记录的 72 比特为悟空芯片规格，
+   两者是同一平台的不同芯片，非笔误。
+2. **主峰占比偏高的原因**：本次调用 `async_real_chip_measure(..., is_amend=True,
+   is_mapping=True)`（见 [`real_machine.py`](../real_machine.py) 的
+   `_run_originq_wukong`），其中 `is_amend=True` 是本源平台官方提供的**读出误差
+   修正**开关，属平台标准功能。因此返回分布（00/11 合计 99.99%）比未修正的裸数据
+   干净——这是平台后处理的结果，不是模拟器数据：调用走的是真机接口
+   `async_real_chip_measure`（非 CPUQVM 本地模拟），task_id 可在平台任务中心溯源。
+   如需未修正的裸数据，可将配置中的 `is_amend` 置为 `false` 重跑。
+
 **AWS Braket**（可选，允许以本地模拟器替代）：
 
 ```text

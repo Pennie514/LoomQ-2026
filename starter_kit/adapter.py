@@ -399,11 +399,15 @@ def agent_chat(prompt: str) -> str:
 # L2 子流程 1：智能选后端（约束求解 + LLM 双通道）
 # --------------------------------------------------------------------------
 
-def _parse_backend_constraints(prompt: str, backends: list) -> list:
+def _parse_backend_constraints(prompt: str, backends: list,
+                               diagnostics: dict | None = None) -> list:
     """从用户描述中解析约束，返回符合全部约束的规范后端 id 列表。
 
     约束维度（官方后端能力表字段）：比特数、排队、费用、账号、真机/模拟器。
     与关键词无关——完全按数字与语义约束过滤，变体 prompt 同样成立。
+
+    diagnostics: 可选输出参数。当需求无法完全满足时写入说明，供调用方
+    在回复中如实告知用户（目前含 `qubit_shortfall`：需求比特数超过能力表上限）。
     """
     text = prompt.lower()
 
@@ -416,10 +420,22 @@ def _parse_backend_constraints(prompt: str, backends: list) -> list:
     if qubit_needed is not None and qubit_needed < 2:
         qubit_needed = None
 
-    # 2) 排队约束
-    no_queue = bool(re.search(r"零排队|不排队|无需排队|不要排队|立刻|马上|now|no queue|no_queue",
-                              text))
-    wants_queue_free = bool(re.search(r"排队", text))
+    # 2) 排队约束：按「否定词 + 排队/等待」的语义组合识别，而非枚举固定说法，
+    #    这样「不想排队 / 不愿等 / 别排队 / 免排队」等变体写法同样成立。
+    negation = r"(?:不想|不愿|不希望|不能|不要|不用|没有|别|无需|无须|零|免|无)"
+    queue_word = r"(?:排队|等待|等候|等)"
+    # 显式否定词与「排队/等」之间允许最多 2 个非标点字符，覆盖「不愿意等」「不想再等」；
+    # 标点作边界，避免跨句误匹配。裸「不」只接受紧邻写法（「不排队」「不等」），
+    # 否则「我不介意排队」会被反向误判成不要排队。
+    no_queue = bool(re.search(rf"{negation}[^。，,.；;！!？?\n]{{0,2}}?{queue_word}", text)
+                    or re.search(rf"不{queue_word}", text))
+    if not no_queue:
+        no_queue = bool(re.search(
+            r"queue[-_ ]?free|no[-_ ]?queue|no[-_ ]?wait(?:ing)?|without\s+(?:queue|wait)", text))
+    if not no_queue:
+        # 紧迫性表达等价于要求 queue == "none"
+        no_queue = bool(re.search(
+            r"立刻|立即|马上|尽快|最快|秒出|当场|现在就|asap|immediately|right\s+away", text))
 
     # 3) 费用约束
     free_only = bool(re.search(r"免费|不花钱|free", text))
@@ -447,12 +463,20 @@ def _parse_backend_constraints(prompt: str, backends: list) -> list:
             return False
         return True
 
-    # 约束求解 + 逐级放宽：优先全约束，其次放宽账号，再放宽排队，最后放宽比特数
+    # 比特数是硬性物理上限，不能像账号/排队那样"放宽"：若需求超过表内最大容量，
+    # 记录缺口并退化为"能力表最大容量"档，由调用方明确告知用户无法完全满足，
+    # 而不是丢掉约束后推荐一个更小的后端。
+    table_max = max((b.get("max_qubits", 0) for b in backends), default=0)
+    if qubit_needed is not None and qubit_needed > table_max:
+        if diagnostics is not None:
+            diagnostics["qubit_shortfall"] = {"needed": qubit_needed, "table_max": table_max}
+        qubit_needed = table_max
+
+    # 约束求解 + 逐级放宽：仅放宽账号与排队这类可协商约束，比特数始终保留
     relaxations = (
         (no_account, no_queue, qubit_needed),
         (False, no_queue, qubit_needed),
         (False, False, qubit_needed),
-        (False, False, None),
     )
     for use_no_account, use_no_queue, use_qubits in relaxations:
         def matches_relaxed(b: dict, _na=use_no_account, _nq=use_no_queue, _qb=use_qubits) -> bool:
@@ -472,7 +496,11 @@ def _parse_backend_constraints(prompt: str, backends: list) -> list:
         hits = [b for b in backends if matches_relaxed(b)]
         if hits:
             return hits
-    return [b for b in backends if b.get("kind") == "simulator"]
+    # 兜底：全约束都放宽后仍无解（如同时要求真机 + 模拟器等自相矛盾的描述），
+    # 返回容量最大的模拟器，保证回复里始终有一个可用的规范 id。
+    sims = [b for b in backends if b.get("kind") == "simulator"]
+    pool = sims or list(backends)
+    return sorted(pool, key=lambda b: b.get("max_qubits", 0), reverse=True)
 
 
 _BACKEND_PRIORITY = (
@@ -502,9 +530,17 @@ def _agent_backend_selection(prompt: str, backends: list, llm_client) -> str:
     )
     reply = _call_llm(system, prompt, llm_client)
 
-    solver_hits = _parse_backend_constraints(prompt, backends)
-    solver_ids = [b["id"] for b in solver_hits]
-    solver_ids.sort(key=lambda i: (_BACKEND_PRIORITY.index(i) if i in _BACKEND_PRIORITY else 99))
+    diagnostics: dict = {}
+    solver_hits = _parse_backend_constraints(prompt, backends, diagnostics)
+    shortfall = diagnostics.get("qubit_shortfall")
+    if shortfall:
+        # 需求超过能力表上限：按容量降序，主答案给最大容量后端，并如实说明缺口
+        solver_hits = sorted(solver_hits, key=lambda b: b.get("max_qubits", 0), reverse=True)
+        solver_ids = [b["id"] for b in solver_hits]
+    else:
+        solver_ids = [b["id"] for b in solver_hits]
+        solver_ids.sort(
+            key=lambda i: (_BACKEND_PRIORITY.index(i) if i in _BACKEND_PRIORITY else 99))
 
     # 从 LLM 回复中提取可能的后端 id（兜底）
     llm_ids = [b["id"] for b in backends if b["id"] in reply]
@@ -519,8 +555,22 @@ def _agent_backend_selection(prompt: str, backends: list, llm_client) -> str:
         main, alts = "braket_local_simulator", []
 
     header = f"推荐后端：{main}。"
+    if shortfall:
+        header += (f"\n说明：你需要 {shortfall['needed']} 比特，但当前能力表内最大容量为 "
+                   f"{shortfall['table_max']} 比特（{main}），没有平台能完全满足该需求；"
+                   f"上面给出的是容量最大的可用后端。")
     if alts:
-        header += f"\n备选（同样满足约束，按推荐优先级）：{'、'.join(alts)}。"
+        label = ("备选（按容量降序，同样无法满足该比特数）" if shortfall
+                 else "备选（同样满足约束，按推荐优先级）")
+        header += f"\n{label}：{'、'.join(alts)}。"
+
+    # 模型自由文本里可能提到与约束求解结果不一致的后端（模型没做数值校验）。
+    # 此时补一句以能力表为准的澄清，避免整条回复自相矛盾。
+    if solver_ids:
+        conflicting = [i for i in llm_ids if i not in solver_ids]
+        if conflicting:
+            header += (f"\n（注：下文模型建议中提到的 {'、'.join(conflicting)} 不满足本次约束，"
+                       f"以上方按官方能力表求解的结果为准。）")
     return header + "\n" + reply
 
 

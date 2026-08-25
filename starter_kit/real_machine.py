@@ -204,7 +204,10 @@ def _run_originq_wukong(qasm_str: str, cfg: Dict[str, Any], out: str | None) -> 
         raise RuntimeError("未安装 pyqpanda，无法访问本源量子云") from exc
 
     shots = int(cfg.get("shots", 8192))
-    chip_id = cfg.get("chip_id", 72)  # 悟空 72 比特超导真机
+    # chip_id 选择本源平台上的具体芯片：72 = 悟空，180 = 180 比特超导芯片。
+    # 证据包 config_originq_wukong.json 用 180（本次真机证据实际执行的芯片），
+    # 也可用 --chip-id 覆盖。
+    chip_id = cfg.get("chip_id", 72)
     task_name = cfg.get("task_name", "LoomQ-2026")
 
     machine = pq.QCloud()
